@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://aether-ai-os.netlify.app/sitemap.xml

@@ -1,0 +1,147 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import nodemailer from 'nodemailer'
+import dotenv from 'dotenv'
+
+// Load .env variables into process.env
+dotenv.config()
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [
+    react(),
+    {
+      name: 'otp-sender-middleware',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          // Normalize URL path
+          const urlPath = req.url.split('?')[0];
+
+          if (urlPath === '/api/send-otp' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                const { email, code, type } = JSON.parse(body);
+                
+                // Read loaded environment variables
+                const host = process.env.AETHER_SMTP_HOST;
+                const port = process.env.AETHER_SMTP_PORT || 587;
+                const user = process.env.AETHER_SMTP_USER;
+                const pass = process.env.AETHER_SMTP_PASS;
+                const from = process.env.AETHER_SMTP_FROM || user;
+
+                if (!host || !user || !pass) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ 
+                    success: false, 
+                    error: 'SMTP credentials not configured in .env file.' 
+                  }));
+                  return;
+                }
+
+                const transporter = nodemailer.createTransport({
+                  host,
+                  port: parseInt(port),
+                  secure: port == 465, // True for 465, false for 587
+                  auth: { user, pass }
+                });
+
+                const subject = type === 'reset' ? 'Aether AI OS - Security Recovery Code' : 'Aether AI OS - Biometric OTP Verification';
+                const html = `
+                  <div style="font-family: 'Outfit', sans-serif; background-color: #02020a; color: #f8fafc; padding: 40px; border-radius: 14px; max-width: 480px; margin: 0 auto; border: 1px solid rgba(16, 185, 129, 0.25); box-shadow: 0 8px 30px rgba(0,0,0,0.8);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                      <div style="font-size: 32px; font-weight: 800; color: #10b981; letter-spacing: 0.05em; display: inline-block;">Æ AETHER AI OS</div>
+                      <div style="font-size: 10px; color: #00d2ff; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 4px;">SECURE NEURAL GATEWAY</div>
+                    </div>
+                    <div style="background: rgba(4, 12, 32, 0.6); padding: 24px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.15);">
+                      <h3 style="color: #ffffff; margin-top: 0; font-size: 18px; font-weight: 600; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">SECURITY CODE VERIFICATION</h3>
+                      <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin-top: 16px;">
+                        A session authentication sweep requested authorization. Enter this security telemetry code into the node gateway:
+                      </p>
+                      <div style="background: rgba(16, 185, 129, 0.08); border: 1px dashed #10b981; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0; font-size: 36px; font-family: monospace; font-weight: 700; letter-spacing: 0.2em; color: #ffffff; text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);">
+                        ${code}
+                      </div>
+                      <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin-bottom: 0;">
+                        This is an automated transmission. If you did not initiate this authorization, please ignore this email.
+                      </p>
+                    </div>
+                  </div>
+                `;
+
+                await transporter.sendMail({ from, to: email, subject, html });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+              } catch (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: err.message }));
+              }
+            });
+          } else if (urlPath === '/api/chat' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                const { contents, apiKey } = JSON.parse(body);
+
+                if (!apiKey) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'API key is required.' }));
+                  return;
+                }
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:streamGenerateContent?key=${apiKey}`;
+                
+                const response = await fetch(url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contents })
+                });
+
+                if (!response.ok) {
+                  res.writeHead(response.status, { 'Content-Type': 'application/json' });
+                  res.end(await response.text());
+                  return;
+                }
+
+                res.writeHead(200, {
+                  'Content-Type': 'text/event-stream',
+                  'Cache-Control': 'no-cache',
+                  'Connection': 'keep-alive'
+                });
+
+                if (response.body) {
+                  if (typeof response.body.getReader === 'function') {
+                    const reader = response.body.getReader();
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+                      res.write(value);
+                    }
+                  } else if (typeof response.body[Symbol.asyncIterator] === 'function') {
+                    for await (const chunk of response.body) {
+                      res.write(chunk);
+                    }
+                  } else if (typeof response.body.on === 'function') {
+                    response.body.on('data', (chunk) => {
+                      res.write(chunk);
+                    });
+                    await new Promise((resolve) => response.body.on('end', resolve));
+                  }
+                }
+
+                res.end();
+              } catch (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+              }
+            });
+          } else {
+            next();
+          }
+        });
+      }
+    }
+  ]
+})

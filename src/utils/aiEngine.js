@@ -372,6 +372,33 @@ Would you like me to write a specific code script, mathematical model, or histor
 
 // Streaming handler supporting live Gemini API streams or falling back to local sandbox templates
 export function streamResponse(prompt, onChunk, onComplete, fileAttachment = null, chatHistory = []) {
+  // Client-side rate limiter to protect Gemini API key and prevent spamming (Max 10 requests / 60 seconds)
+  const rateLimitKey = 'aether_rate_limit_timestamps';
+  const now = Date.now();
+  let timestamps = [];
+  try {
+    timestamps = JSON.parse(localStorage.getItem(rateLimitKey) || '[]');
+  } catch (e) {}
+
+  timestamps = timestamps.filter(t => now - t < 60000);
+
+  if (timestamps.length >= 10) {
+    const oldest = timestamps[0];
+    const waitTime = Math.ceil((60000 - (now - oldest)) / 1000);
+    const errMsg = `⚠️ **Rate Limit Activated**: You are compiling instructions too quickly. Please wait ${waitTime} seconds before sending another message.`;
+    
+    // Simulate async callback delay so UI is updated properly
+    setTimeout(() => {
+      onChunk(errMsg);
+      onComplete(errMsg);
+    }, 100);
+
+    return () => {}; // return empty cancel handler
+  }
+
+  timestamps.push(now);
+  localStorage.setItem(rateLimitKey, JSON.stringify(timestamps));
+
   let apiKey = localStorage.getItem('aether_api_key');
   if (apiKey) {
     try {
@@ -406,8 +433,9 @@ export function streamResponse(prompt, onChunk, onComplete, fileAttachment = nul
       parts: [{ text: "Understood. The Aether node is online. I will provide structured, premium intelligence." }]
     });
 
-    // Map history
-    chatHistory.forEach(h => {
+    // Map history (limited to last 10 messages to save context token quota and prevent TPM 429 errors)
+    const recentHistory = chatHistory.slice(-10);
+    recentHistory.forEach(h => {
       contents.push({
         role: h.sender === 'user' ? 'user' : 'model',
         parts: [{ text: h.text }]
@@ -417,7 +445,7 @@ export function streamResponse(prompt, onChunk, onComplete, fileAttachment = nul
     // Append current prompt
     let queryText = prompt;
     if (fileAttachment) {
-      queryText = `[User attached file payload: ${fileAttachment.name} (${fileAttachment.size} bytes)]\n\n${prompt}`;
+      queryText = `[User attached file: ${fileAttachment.name} (${fileAttachment.size} bytes)]\n\`\`\`\n${fileAttachment.content || ''}\n\`\`\`\n\n${prompt}`;
     }
     contents.push({
       role: 'user',
@@ -433,9 +461,26 @@ export function streamResponse(prompt, onChunk, onComplete, fileAttachment = nul
       body: JSON.stringify({ contents, apiKey }),
       signal: controller.signal
     })
-    .then(response => {
+    .then(async (response) => {
       if (!response.ok) {
-        throw new Error(`Gemini API connection error (HTTP ${response.status}). Make sure you copied ONLY the key value (starts with AQ. or AIzaSy) and not the full URL or curl command.`);
+        let errMsg = '';
+        try {
+          const errData = await response.json();
+          errMsg = errData.error || '';
+        } catch (e) {
+          try {
+            errMsg = await response.text();
+          } catch (e2) {}
+        }
+
+        if (response.status === 429) {
+          throw new Error('Gemini API Rate Limit Exceeded (HTTP 429). You have hit the rate limit or daily quota for this key. Please wait a moment before trying again, or clear your API key in Settings to use Sandbox mode.');
+        } else if (response.status === 403) {
+          throw new Error('Gemini API Key Invalid or Forbidden (HTTP 403). Your API key may be invalid or restricted. Please check your key configuration in Settings.');
+        } else {
+          const detailedMsg = errMsg ? `: ${errMsg}` : '';
+          throw new Error(`Gemini API connection error (HTTP ${response.status})${detailedMsg}. Make sure you copied ONLY the key value (starts with AQ. or AIzaSy) and not the full URL or curl command.`);
+        }
       }
       return response.body;
     })

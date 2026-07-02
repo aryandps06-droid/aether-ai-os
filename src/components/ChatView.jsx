@@ -6,7 +6,7 @@ import {
   RefreshCw, Play, Share2, CornerDownRight, Search, FileText, Check, AlertCircle, X, Sparkles 
 } from 'lucide-react';
 
-export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMessage }) => {
+export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMessage, queryUsage = 0 }) => {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [speechActiveId, setSpeechActiveId] = useState(null); // ID of message currently being spoken
@@ -21,6 +21,9 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
+
+  const isStreaming = chat?.messages.length > 0 && chat.messages[chat.messages.length - 1].isStreaming;
+  const remainingCycles = 15 - queryUsage;
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -56,7 +59,6 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
       }
     }
 
-    // Stop speaking when chat changes
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -66,6 +68,8 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
 
   const handleSend = (e) => {
     e.preventDefault();
+    if (isStreaming) return;
+    if (remainingCycles <= 0) return;
     if (!input.trim() && !fileAttachment) return;
 
     const messageText = input;
@@ -73,14 +77,11 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
     const attachedFile = fileAttachment;
     setFileAttachment(null);
 
-    // Call parent handler to create User message
     onSendMessage(messageText, attachedFile);
   };
 
-  // Simulated Speech Input fallback if WebSpeech is not supported
   const toggleRecording = () => {
     if (!recognitionRef.current) {
-      // Simulation fallback
       if (isRecording) {
         setIsRecording(false);
       } else {
@@ -97,80 +98,63 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
       recognitionRef.current.stop();
     } else {
       setIsRecording(true);
-      recognitionRef.current.start();
+      resetMessages();
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        setIsRecording(false);
+      }
     }
   };
 
-  // Text-To-Speech Synthesis
-  const speakMessage = (messageId, text) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      alert("Biometric Speech Synthesis is not supported in this environment.");
-      return;
-    }
-
-    if (speechActiveId === messageId) {
-      window.speechSynthesis.cancel();
-      setSpeechActiveId(null);
-      return;
-    }
-
-    window.speechSynthesis.cancel(); // Stop current speech
-    
-    // Clean markdown before speaking
-    const cleanText = text
-      .replace(/###\s+/g, '')
-      .replace(/\*\*/g, '')
-      .replace(/`[^`]+`/g, 'code block')
-      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // Load config from settings
-    const speed = localStorage.getItem('aether_speech_speed') || '1';
-    utterance.rate = parseFloat(speed);
-    
-    const voiceName = localStorage.getItem('aether_speech_voice');
-    if (voiceName) {
-      const selected = window.speechSynthesis.getVoices().find(v => v.name === voiceName);
-      if (selected) utterance.voice = selected;
-    }
-
-    utterance.onend = () => {
-      setSpeechActiveId(null);
-    };
-
-    utterance.onerror = () => {
-      setSpeechActiveId(null);
-    };
-
-    setSpeechActiveId(messageId);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Clipboard Copier
-  const copyToClipboard = (id, text) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  // File Uploader
   const triggerFileUpload = () => {
-    fileInputRef.current.click();
+    fileInputRef.current?.click();
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFileAttachment({
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFileAttachment({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          content: event.target.result
+        });
+      };
+      
+      const isText = file.type.startsWith('text/') || 
+                     file.name.endsWith('.js') || 
+                     file.name.endsWith('.jsx') || 
+                     file.name.endsWith('.ts') || 
+                     file.name.endsWith('.tsx') || 
+                     file.name.endsWith('.json') || 
+                     file.name.endsWith('.py') || 
+                     file.name.endsWith('.css') || 
+                     file.name.endsWith('.html') || 
+                     file.name.endsWith('.md') || 
+                     file.name.endsWith('.txt') || 
+                     file.name.endsWith('.java') || 
+                     file.name.endsWith('.go') || 
+                     file.name.endsWith('.rs') || 
+                     file.name.endsWith('.cpp') || 
+                     file.name.endsWith('.c') || 
+                     file.name.endsWith('.sh');
+                     
+      if (isText) {
+        reader.readAsText(file);
+      } else {
+        setFileAttachment({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          content: '[Binary file content - metadata only]'
+        });
+      }
     }
   };
 
-  // Edit Message
   const startEdit = (msg) => {
     setEditingMessageId(msg.id);
     setEditText(msg.text);
@@ -183,18 +167,15 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
     }
   };
 
-  // Share conversation simulation
   const handleShare = () => {
     const mockLink = `https://aether.ai/share/session-${chat.id}`;
     setShareLink(mockLink);
     setShowShare(true);
   };
 
-  // Custom parser to format markdown/latex blocks
   const renderMessageContent = (text) => {
     if (!text) return null;
 
-    // Line parser
     const lines = text.split('\n');
     const elements = [];
     let codeBlock = [];
@@ -204,30 +185,19 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
     let isTable = false;
 
     lines.forEach((line, index) => {
-      // Check code block
+      // 1. Code Block parsing
       if (line.trim().startsWith('```')) {
         if (isCode) {
-          // End of code
           elements.push(
-            <div key={`code-${index}`} style={{ margin: '14px 0', width: '100%' }}>
+            <div key={`code-${index}`} style={{ margin: '14px 0 20px', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
               <div className="code-header">
-                <span>{codeLanguage || 'terminal'}</span>
-                <button 
-                  onClick={() => copyToClipboard(`code-snippet-${index}`, codeBlock.join('\n'))}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
+                <span>{codeLanguage || 'COMPILE'}</span>
+                <span 
+                  onClick={() => navigator.clipboard.writeText(codeBlock.join('\n'))}
+                  style={{ cursor: 'pointer', color: 'var(--color-cyan)', fontSize: '0.72rem' }}
                 >
-                  <Copy size={12} />
-                  Copy
-                </button>
+                  Copy Node
+                </span>
               </div>
               <div className="code-container">
                 <code className="code-block">{codeBlock.join('\n')}</code>
@@ -237,9 +207,8 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
           codeBlock = [];
           isCode = false;
         } else {
-          // Start of code
           isCode = true;
-          codeLanguage = line.trim().substring(3) || 'javascript';
+          codeLanguage = line.trim().slice(3).toUpperCase();
         }
         return;
       }
@@ -249,28 +218,27 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
         return;
       }
 
-      // Check tables (start with |)
+      // 2. Table parsing
       if (line.trim().startsWith('|')) {
         isTable = true;
-        // Ignore separating lines e.g. | :--- | :--- |
-        if (!line.includes('---')) {
-          const cells = line.split('|').map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
-          tableRows.push(cells);
-        }
+        tableRows.push(line);
         return;
       } else if (isTable) {
-        // Table finished, render table elements
-        isTable = false;
+        // Output table
+        const rows = tableRows.map(r => r.split('|').map(cell => cell.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1));
+        const headers = rows[0];
+        const bodyRows = rows.slice(2); // Skip separator row
+
         elements.push(
-          <div key={`table-${index}`} style={{ overflowX: 'auto', margin: '16px 0', width: '100%' }}>
+          <div key={`table-${index}`} style={{ overflowX: 'auto', margin: '14px 0', width: '100%' }}>
             <table className="markdown-table">
               <thead>
                 <tr>
-                  {tableRows[0]?.map((cell, idx) => <th key={idx}>{cell}</th>)}
+                  {headers.map((h, i) => <th key={i}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {tableRows.slice(1).map((row, rIdx) => (
+                {bodyRows.map((row, rIdx) => (
                   <tr key={rIdx}>
                     {row.map((cell, cIdx) => <td key={cIdx}>{cell}</td>)}
                   </tr>
@@ -280,87 +248,126 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
           </div>
         );
         tableRows = [];
+        isTable = false;
       }
 
-      // Parse headers
-      if (line.startsWith('### ')) {
-        elements.push(<h3 key={index} style={{ fontSize: '1.15rem', fontWeight: 600, color: '#fff', margin: '18px 0 8px', letterSpacing: '-0.01em' }}>{line.replace('### ', '')}</h3>);
-      } else if (line.startsWith('#### ')) {
-        elements.push(<h4 key={index} style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-cyan)', margin: '14px 0 6px' }}>{line.replace('#### ', '')}</h4>);
-      } else if (line.startsWith('**') && line.endsWith('**')) {
-        elements.push(<p key={index} style={{ fontWeight: 600, color: '#fff', margin: '8px 0' }}>{line.replace(/\*\*/g, '')}</p>);
-      } else if (line.startsWith('* ') || line.startsWith('- ')) {
-        // Simple bullets support
-        const bulletText = line.substring(2);
-        // Inline bold parsing
-        const formattedText = parseInlineMarkdown(bulletText);
+      // 3. LaTeX Equation Block parsing
+      if (line.trim().startsWith('$$') && line.trim().endsWith('$$') && line.trim().length > 4) {
+        const formula = line.trim().slice(2, -2);
         elements.push(
-          <div key={index} style={{ display: 'flex', gap: '8px', margin: '6px 0 6px 12px', fontSize: '0.95rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+          <div key={`latex-${index}`} className="latex-block">
+            {formula}
+          </div>
+        );
+        return;
+      }
+
+      // 4. Bullet lists
+      if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
+        elements.push(
+          <div key={`bullet-${index}`} style={{ display: 'flex', gap: '8px', paddingLeft: '10px', margin: '4px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
             <span style={{ color: 'var(--color-cyan)' }}>•</span>
-            <span>{formattedText}</span>
+            <span>{line.trim().slice(2)}</span>
           </div>
         );
-      } else if (line.trim().startsWith('\\[')) {
-        // LaTeX math blocks
-        const math = line.replace('\\[', '').replace('\\]', '');
+        return;
+      }
+
+      // 5. Default paragraphs
+      if (line.trim()) {
         elements.push(
-          <div key={index} className="latex-block">
-            {math}
-          </div>
+          <p key={`p-${index}`} style={{ margin: '0 0 10px', fontSize: '0.92rem', lineHeight: 1.55, color: 'var(--text-primary)' }}>
+            {line}
+          </p>
         );
-      } else if (line.trim()) {
-        const formattedText = parseInlineMarkdown(line);
-        elements.push(<p key={index} style={{ fontSize: '0.95rem', lineHeight: 1.6, color: 'var(--text-secondary)', margin: '8px 0' }}>{formattedText}</p>);
       }
     });
+
+    if (isCode && codeBlock.length > 0) {
+      elements.push(
+        <div key="unclosed-code" className="code-container">
+          <code className="code-block">{codeBlock.join('\n')}</code>
+        </div>
+      );
+    }
 
     return elements;
   };
 
-  // Helper for inline markdown bold / code tags
-  const parseInlineMarkdown = (text) => {
-    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\\\(.*?\\\))/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('`') && part.endsWith('`')) {
-        return <code key={i} style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.82rem', color: 'var(--color-pink)' }}>{part.slice(1, -1)}</code>;
-      }
-      if (part.startsWith('\\(') && part.endsWith('\\)')) {
-        return <span key={i} style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-cyan)' }}>{part.slice(2, -2)}</span>;
-      }
-      return part;
-    });
+  const copyToClipboard = (id, text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1800);
+  };
+
+  const speakMessage = (id, text) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    if (speechActiveId === id) {
+      window.speechSynthesis.cancel();
+      setSpeechActiveId(null);
+    } else {
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/```[\s\S]*?```/g, '[Code Block omitted]');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.onend = () => setSpeechActiveId(null);
+      utterance.onerror = () => setSpeechActiveId(null);
+      setSpeechActiveId(id);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const resetMessages = () => {
+    setEditingMessageId(null);
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-      
-      {/* Top Banner Toolbar */}
+    <div 
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        backgroundColor: '#000000', // OLED Black
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Session Title Header */}
       <div 
         style={{
-          padding: '16px 24px 16px 72px',
-          borderBottom: '1px solid rgba(139, 92, 246, 0.15)',
-          background: 'rgba(3, 0, 20, 0.45)',
-          backdropFilter: 'blur(10px)',
+          padding: '16px 24px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+          background: 'rgba(2, 2, 8, 0.92)',
+          backdropFilter: 'blur(20px)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          zIndex: 90
+          zIndex: 90,
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.9)'
         }}
       >
         <div>
-          <h2 style={{ fontSize: '1.05rem', fontWeight: 600 }}>{chat?.title}</h2>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff' }}>{chat?.title}</h2>
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Secure Quantum Channel Active</span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Neon progress cycles counter */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <span style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: remainingCycles <= 3 ? '#ef4444' : 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Cognitive Cycles: {remainingCycles} / 15 Remaining
+            </span>
+            <div style={{ width: '120px', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.max(0, (remainingCycles / 15) * 100)}%`, height: '100%', background: remainingCycles <= 3 ? '#ef4444' : 'linear-gradient(90deg, var(--color-cyan) 0%, var(--color-emerald) 100%)', boxShadow: remainingCycles <= 3 ? '0 0 8px #ef4444' : '0 0 8px rgba(16, 185, 129, 0.5)' }} />
+            </div>
+          </div>
           <button 
             onClick={handleShare}
             className="cyber-btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}
+            style={{ padding: '8px 14px', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)', background: 'rgba(5, 5, 12, 0.72)', borderColor: 'rgba(255, 255, 255, 0.08)' }}
           >
-            <Share2 size={14} />
+            <Share2 size={13} />
             Share
           </button>
         </div>
@@ -375,7 +382,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
           display: 'flex',
           flexDirection: 'column',
           gap: '24px',
-          backgroundImage: 'radial-gradient(circle at 50% 10%, rgba(16, 185, 129, 0.05) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(0, 210, 255, 0.04) 0%, transparent 50%)',
+          backgroundImage: 'radial-gradient(circle at 50% 10%, rgba(16, 185, 129, 0.04) 0%, transparent 60%), radial-gradient(circle at 95% 80%, rgba(0, 210, 255, 0.03) 0%, transparent 50%)',
           backgroundAttachment: 'local'
         }}
       >
@@ -396,7 +403,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
               boxShadow: '0 0 20px var(--color-violet-glow)',
               animation: 'spinSlow 20s linear infinite'
             }}>Æ</div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px', letterSpacing: '-0.01em' }}>Aether AI Workspace Node</h3>
+            <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px', letterSpacing: '-0.01em', color: '#fff' }}>Aether AI Workspace Node</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '380px', lineHeight: 1.5 }}>
               Type your first query in the terminal input below to initialize compile sequences.
             </p>
@@ -439,32 +446,48 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
 
               {/* Chat Bubble Box */}
               <div 
-                className={isUser ? "chat-bubble-user" : "chat-bubble-assistant"}
                 style={{
                   position: 'relative',
-                  width: 'fit-content',
+                  maxWidth: isUser ? '75%' : '82%',
                   display: 'flex',
-                  flexDirection: 'column'
+                  flexDirection: 'column',
+                  padding: isUser ? '16px 22px' : '18px 24px',
+                  borderRadius: isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                  background: isUser ? 'rgba(2, 2, 8, 0.85)' : 'rgba(1, 4, 16, 0.9)',
+                  border: isUser ? '1px solid rgba(0, 210, 255, 0.45)' : '1px solid rgba(16, 185, 129, 0.35)',
+                  boxShadow: isUser ? '0 8px 30px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 210, 255, 0.12)' : '0 8px 30px rgba(0, 0, 0, 0.95), 0 0 15px rgba(16, 185, 129, 0.1)',
+                  color: isUser ? '#ffffff' : '#f1f5f9',
+                  transition: 'transform 0.2s ease, border-color 0.2s ease',
+                  alignSelf: isUser ? 'flex-end' : 'flex-start'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.borderColor = isUser ? 'var(--color-cyan)' : 'var(--color-emerald)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.borderColor = isUser ? 'rgba(0, 210, 255, 0.45)' : 'rgba(16, 185, 129, 0.35)';
                 }}
               >
-                {/* File Attachment Pill in bubble if present */}
+                {/* File Attachment Pill in bubble - security data chip */}
                 {msg.file && (
                   <div 
                     style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(0, 210, 255, 0.05)',
+                      border: '1px solid rgba(0, 210, 255, 0.2)',
                       borderRadius: 'var(--radius-sm)',
                       padding: '8px 12px',
-                      marginBottom: '10px',
+                      marginBottom: '12px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
                       fontSize: '0.8rem',
-                      alignSelf: 'flex-start'
+                      alignSelf: 'flex-start',
+                      boxShadow: '0 2px 10px rgba(0, 210, 255, 0.05)'
                     }}
                   >
-                    <FileText size={16} style={{ color: 'var(--color-cyan)' }} />
-                    <span style={{ fontWeight: 500 }}>{msg.file.name}</span>
+                    <FileText size={16} style={{ color: 'var(--color-cyan)', filter: 'drop-shadow(0 0 4px rgba(0,210,255,0.4))' }} />
+                    <span style={{ fontWeight: 600, color: '#ffffff' }}>{msg.file.name}</span>
                     <span style={{ color: 'var(--text-muted)' }}>({(msg.file.size / 1024).toFixed(1)} KB)</span>
                   </div>
                 )}
@@ -477,7 +500,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
                       onChange={e => setEditText(e.target.value)}
                       className="cyber-input"
                       rows={3}
-                      style={{ width: '100%', resize: 'none', background: '#0a0522' }}
+                      style={{ width: '100%', resize: 'none', background: '#02020a' }}
                     />
                     <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end' }}>
                       <button onClick={() => setEditingMessageId(null)} className="cyber-btn-secondary" style={{ padding: '6px 12px', fontSize: '0.75rem' }}>
@@ -489,7 +512,22 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
                     </div>
                   </div>
                 ) : (
-                  <div>{renderMessageContent(msg.text)}</div>
+                  <div>
+                    {renderMessageContent(msg.text)}
+                    {msg.isStreaming && (
+                      <span 
+                        style={{
+                          display: 'inline-block',
+                          width: '8px',
+                          height: '14px',
+                          backgroundColor: '#10b981',
+                          marginLeft: '6px',
+                          verticalAlign: 'middle',
+                          animation: 'pulseMic 0.8s infinite ease-in-out'
+                        }}
+                      />
+                    )}
+                  </div>
                 )}
 
                 {/* Bubble Footer Action panel (fade-in on hover) */}
@@ -591,9 +629,9 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
       <div 
         style={{
           padding: '20px 24px',
-          borderTop: '1px solid rgba(139, 92, 246, 0.15)',
-          background: 'rgba(3, 0, 20, 0.55)',
-          backdropFilter: 'blur(15px)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+          background: 'rgba(2, 2, 8, 0.92)',
+          backdropFilter: 'blur(20px)',
           zIndex: 80
         }}
       >
@@ -607,7 +645,8 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             padding: '8px 16px',
             borderRadius: 'var(--radius-lg)',
             borderWidth: '1px',
-            background: 'rgba(8, 4, 32, 0.8)'
+            borderColor: 'rgba(255, 255, 255, 0.05)',
+            background: 'rgba(5, 5, 10, 0.88)'
           }}
         >
           {/* File input attachment click */}
@@ -626,6 +665,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             }}
             className="cyber-btn-secondary"
             title="Attach file payload"
+            disabled={remainingCycles <= 0}
           >
             <Paperclip size={18} />
           </button>
@@ -635,14 +675,16 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             ref={fileInputRef} 
             style={{ display: 'none' }} 
             onChange={handleFileChange}
+            disabled={remainingCycles <= 0}
           />
 
           {/* Text Area */}
           <input 
             type="text"
-            placeholder={fileAttachment ? "Add prompt notes to compile with file..." : "Compile instructions for Aether..."}
+            placeholder={remainingCycles <= 0 ? "Cognitive capacity limit reached." : (isStreaming ? "Aether is compiling..." : (fileAttachment ? "Add prompt notes to compile with file..." : "Compile instructions for Aether..."))}
             value={input}
             onChange={e => setInput(e.target.value)}
+            disabled={isStreaming || remainingCycles <= 0}
             style={{
               flex: 1,
               background: 'transparent',
@@ -697,6 +739,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             }}
             className="cyber-btn-secondary"
             title="Bio-Voice Recognition input"
+            disabled={remainingCycles <= 0}
           >
             {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
@@ -709,9 +752,10 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
               padding: '10px',
               borderRadius: 'var(--radius-md)',
               minWidth: 'auto',
-              boxShadow: 'none'
+              boxShadow: 'none',
+              background: 'linear-gradient(90deg, #7c3aed 0%, #c084fc 100%)'
             }}
-            disabled={!input.trim() && !fileAttachment}
+            disabled={isStreaming || remainingCycles <= 0 || (!input.trim() && !fileAttachment)}
           >
             <Send size={16} />
           </button>
@@ -722,63 +766,54 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
       {showShare && (
         <div 
           style={{
-            position: 'fixed',
+            position: 'absolute',
             inset: 0,
-            backgroundColor: 'rgba(3,0,20,0.8)',
+            background: 'rgba(0,0,0,0.85)',
             backdropFilter: 'blur(8px)',
-            zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            zIndex: 999
           }}
         >
           <div 
-            className="glass-panel glow-ring"
+            className="glass-panel"
             style={{
               padding: '30px',
-              width: '100%',
-              maxWidth: '440px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px',
-              animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+              borderRadius: 'var(--radius-lg)',
+              maxWidth: '460px',
+              width: '90%',
+              background: '#04040c',
+              border: '1px solid rgba(0, 210, 255, 0.3)',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.95), 0 0 20px rgba(0, 210, 255, 0.1)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', borderBottom: '1px solid rgba(139,92,246,0.15)', paddingBottom: '12px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Share Conversation Node</h3>
-              <X size={18} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowShare(false)} />
-            </div>
-
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-              Generate a shareable public terminal link for this active synapse thread.
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '10px' }}>Sync Link Generated</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '20px' }}>
+              Your quantum workspace session link is primed. Copy link to deploy to peer terminal nodes.
             </p>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
               <input 
                 type="text" 
                 value={shareLink} 
                 readOnly 
-                className="cyber-input"
-                style={{ flex: 1, padding: '10px', fontSize: '0.8rem', background: '#0a0522' }}
+                className="cyber-input" 
+                style={{ flex: 1, fontSize: '0.8rem', background: '#020206' }} 
               />
               <button 
-                onClick={() => copyToClipboard('share-link', shareLink)}
+                onClick={() => { navigator.clipboard.writeText(shareLink); alert('Link Copied!'); }}
                 className="cyber-btn"
-                style={{ padding: '10px' }}
+                style={{ padding: '0 16px', minWidth: 'auto' }}
               >
                 Copy
               </button>
             </div>
-            
-            {copiedId === 'share-link' && (
-              <span style={{ fontSize: '0.8rem', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                <Check size={14} /> Link copied to clipboard.
-              </span>
-            )}
-            
-            <button onClick={() => setShowShare(false)} className="cyber-btn-secondary" style={{ width: '100%', padding: '10px' }}>
-              Close Shared Panel
+            <button 
+              onClick={() => setShowShare(false)} 
+              className="cyber-btn-secondary" 
+              style={{ width: '100%', padding: '10px 0', borderRadius: 'var(--radius-md)' }}
+            >
+              Close Link Panel
             </button>
           </div>
         </div>

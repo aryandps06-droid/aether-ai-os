@@ -38,14 +38,19 @@ export const authSystem = {
 
         saveUsers(users);
 
-        // Attempt real OTP delivery via local Vite backend proxy
+        // Attempt real OTP delivery via local Vite backend proxy (4-second strict timeout)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
         fetch('/api/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.toLowerCase(), code, type: 'register' })
+          body: JSON.stringify({ email: email.toLowerCase(), code, type: 'register' }),
+          signal: controller.signal
         })
         .then(res => res.json())
         .then(data => {
+          clearTimeout(timeoutId);
           if (data.success) {
             resolve({
               email: email.toLowerCase(),
@@ -59,17 +64,18 @@ export const authSystem = {
               email: email.toLowerCase(),
               displayName: users[email.toLowerCase()].displayName,
               verified: false,
-              message: 'Node enrolled. SMTP not configured in .env. Using Sandbox code.',
+              message: 'Node enrolled. SMTP not configured or authentication failed. Using Sandbox code.',
               sandboxCode: code
             });
           }
         })
         .catch(() => {
+          clearTimeout(timeoutId);
           resolve({
             email: email.toLowerCase(),
             displayName: users[email.toLowerCase()].displayName,
             verified: false,
-            message: 'Node enrolled. API connection failed. Using Sandbox code.',
+            message: 'Node enrolled. API connection failed or timed out. Using Sandbox code.',
             sandboxCode: code
           });
         });
@@ -154,14 +160,19 @@ export const authSystem = {
         user.verificationCode = code;
         saveUsers(users);
 
-        // Attempt real recovery OTP delivery
+        // Attempt real recovery OTP delivery (4-second strict timeout)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
         fetch('/api/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.toLowerCase(), code, type: 'reset' })
+          body: JSON.stringify({ email: email.toLowerCase(), code, type: 'reset' }),
+          signal: controller.signal
         })
         .then(res => res.json())
         .then(data => {
+          clearTimeout(timeoutId);
           if (data.success) {
             resolve({
               email: email.toLowerCase(),
@@ -170,15 +181,16 @@ export const authSystem = {
           } else {
             resolve({
               email: email.toLowerCase(),
-              message: 'Recovery code generated. SMTP not configured in .env. Using Sandbox code.',
+              message: 'Recovery code generated. SMTP not configured or authentication failed. Using Sandbox code.',
               sandboxCode: code
             });
           }
         })
         .catch(() => {
+          clearTimeout(timeoutId);
           resolve({
             email: email.toLowerCase(),
-            message: 'Recovery code generated. API connection failed. Using Sandbox code.',
+            message: 'Recovery code generated. API connection failed or timed out. Using Sandbox code.',
             sandboxCode: code
           });
         });

@@ -43,6 +43,7 @@ export default async function handler(req, res) {
       if (geminiRes.status === 400) friendlyError += ' Make sure you copied ONLY the key value (starts with AIzaSy) and not the full URL or curl command.';
       if (geminiRes.status === 403) friendlyError += ' Your API key may be invalid or quota exceeded.';
       if (geminiRes.status === 404) friendlyError += ' Make sure you copied ONLY the key value (starts with AIzaSy) and not the full URL or curl command.';
+      if (geminiRes.status === 429) friendlyError = 'Gemini API Rate Limit Exceeded (HTTP 429). You have hit the rate limit or daily quota. Please wait a moment before trying again, or clear your API key in Settings to use Sandbox mode.';
 
       return res.status(geminiRes.status).json({ error: friendlyError });
     }

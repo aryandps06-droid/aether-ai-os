@@ -177,6 +177,28 @@ export const ProfileSettings = ({ user, onClose, onUpdateUser }) => {
                 placeholder="Paste your API Key here (stored locally)"
                 style={{ letterSpacing: apiKey ? '0.12em' : 'normal' }}
               />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Leave blank to use the Sandbox simulation mode.
+                </span>
+                {apiKey && (
+                  <button
+                    type="button"
+                    onClick={() => setApiKey('')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#ef4444',
+                      fontSize: '0.72rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    Clear Key
+                  </button>
+                )}
+              </div>
             </div>
           </section>
 

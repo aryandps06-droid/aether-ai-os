@@ -208,7 +208,8 @@ export const SplashScreen = ({ onComplete }) => {
 
     // Animation Loop
     const draw = () => {
-      ctx.fillStyle = 'rgba(2, 2, 10, 0.2)'; // trail effect
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // trail effect
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       time += 16.67; // standard 60fps increment
 
@@ -265,7 +266,7 @@ export const SplashScreen = ({ onComplete }) => {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: '#02020a',
+        backgroundColor: '#000000',
         zIndex: 9999,
         display: 'flex',
         alignItems: 'center',

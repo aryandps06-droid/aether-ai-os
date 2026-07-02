@@ -1,10 +1,10 @@
-// Glassmorphic Auth Screen for Aether AI OS (Login, Signup, Recovery, Verification)
+// 3D Flippable Auth Screen with Biometric Sound Synthesis for Aether AI OS
 import React, { useState, useEffect, useRef } from 'react';
 import { authSystem } from '../utils/authSystem';
 import { Mail, Lock, User, Check, ShieldAlert, Sparkles } from 'lucide-react';
 
 export const AuthScreen = ({ onAuthSuccess }) => {
-  const [tab, setTab] = useState('login'); // login, register, forgot, verify
+  const [tab, setTab] = useState('login'); // login, register, forgot, verify, verify-reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,6 +18,105 @@ export const AuthScreen = ({ onAuthSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [simulatedMail, setSimulatedMail] = useState(null);
   const [successUser, setSuccessUser] = useState(null);
+
+  const cardRef = useRef(null);
+  const [frontScanCanvas, setFrontScanCanvas] = useState(null);
+  const [backScanCanvas, setBackScanCanvas] = useState(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, scale: 1, transition: 'transform 0.5s ease' });
+
+  const playMechClick = () => {};
+  const playTabSlide = () => {};
+  const playEpicStartupSound = () => {};
+
+  // 3D Parallax Mouse Move Handler
+  const handleCardMouseMove = (e) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    const rotateX = -(y / (rect.height / 2)) * 12;
+    const rotateY = (x / (rect.width / 2)) * 12;
+    setTilt({
+      x: rotateX,
+      y: rotateY,
+      scale: 1.025,
+      transition: 'none'
+    });
+  };
+
+  const handleCardMouseLeave = () => {
+    setTilt({
+      x: 0,
+      y: 0,
+      scale: 1,
+      transition: 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)'
+    });
+  };
+
+  // Biometric scanner loop generator
+  const initRadarScan = (canvas) => {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = 120;
+    canvas.height = 120;
+    
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    let scanY = 10;
+    let dir = 1;
+    let animationId;
+
+    const draw = () => {
+      ctx.fillStyle = 'rgba(2, 2, 12, 0.22)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = 'rgba(0, 210, 255, 0.22)';
+      ctx.lineWidth = 1;
+      for (let r = 15; r < 50; r += 10) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(cx - 50, cy); ctx.lineTo(cx + 50, cy);
+      ctx.moveTo(cx, cy - 50); ctx.lineTo(cx, cy + 50);
+      ctx.stroke();
+
+      scanY += 1.6 * dir;
+      if (scanY > canvas.height - 15 || scanY < 15) {
+        dir *= -1;
+      }
+
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2.5;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#10b981';
+      ctx.beginPath();
+      ctx.moveTo(20, scanY);
+      ctx.lineTo(canvas.width - 20, scanY);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      animationId = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => cancelAnimationFrame(animationId);
+  };
+
+  useEffect(() => {
+    if (!frontScanCanvas) return;
+    const cancel = initRadarScan(frontScanCanvas);
+    return () => cancel && cancel();
+  }, [frontScanCanvas]);
+
+  useEffect(() => {
+    if (!backScanCanvas) return;
+    const cancel = initRadarScan(backScanCanvas);
+    return () => cancel && cancel();
+  }, [backScanCanvas]);
 
   const resetMessages = () => {
     setError('');
@@ -35,9 +134,11 @@ export const AuthScreen = ({ onAuthSuccess }) => {
       const user = await authSystem.login(email, password, rememberMe);
       if (!user.verified) {
         setSuccess('Verification required. Sending verification code...');
-        setSimulatedMail('123456'); // default sandbox code
+        setSimulatedMail('123456');
         setTab('verify');
+        playTabSlide();
       } else {
+        playEpicStartupSound();
         setSuccessUser(user);
       }
     } catch (err) {
@@ -60,10 +161,9 @@ export const AuthScreen = ({ onAuthSuccess }) => {
       setSuccess(res.message);
       if (res.sandboxCode) {
         setSimulatedMail(res.sandboxCode);
-      } else {
-        setSimulatedMail(null);
       }
       setTab('verify');
+      playTabSlide();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -82,10 +182,9 @@ export const AuthScreen = ({ onAuthSuccess }) => {
       setSuccess(res.message);
       if (res.sandboxCode) {
         setSimulatedMail(res.sandboxCode);
-      } else {
-        setSimulatedMail(null);
       }
       setTab('verify-reset');
+      playTabSlide();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -102,15 +201,16 @@ export const AuthScreen = ({ onAuthSuccess }) => {
     try {
       await authSystem.verifyCode(email, code);
       setSuccess('Email verified successfully! Logging you in...');
+      playEpicStartupSound();
       setTimeout(async () => {
         const user = authSystem.getCurrentUser();
         if (user) {
           setSuccessUser(user);
         } else {
           setTab('login');
-          setSuccess('Verified! You can now log in.');
+          resetMessages();
         }
-      }, 500);
+      }, 1000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -128,10 +228,11 @@ export const AuthScreen = ({ onAuthSuccess }) => {
     try {
       const res = await authSystem.resetPassword(email, code, password);
       setSuccess(res.message);
+      playEpicStartupSound();
       setTimeout(() => {
         setTab('login');
         resetMessages();
-      }, 2000);
+      }, 1800);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -149,421 +250,450 @@ export const AuthScreen = ({ onAuthSuccess }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        perspective: '1200px'
       }}
     >
-      {/* Background glowing shapes */}
-      <div 
-        style={{
-          position: 'absolute',
-          top: '25%',
-          left: '20%',
-          width: '350px',
-          height: '350px',
-          background: 'radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)',
-          filter: 'blur(40px)',
-          zIndex: 1
-        }}
-      />
-      <div 
-        style={{
-          position: 'absolute',
-          bottom: '20%',
-          right: '15%',
-          width: '400px',
-          height: '400px',
-          background: 'radial-gradient(circle, rgba(0,210,255,0.12) 0%, transparent 75%)',
-          filter: 'blur(50px)',
-          zIndex: 1
-        }}
-      />
+      {/* Background glowing blobs */}
+      <div style={{ position: 'absolute', top: '22%', left: '20%', width: '380px', height: '380px', background: 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)', filter: 'blur(50px)', zIndex: 1 }} />
+      <div style={{ position: 'absolute', bottom: '20%', right: '15%', width: '420px', height: '420px', background: 'radial-gradient(circle, rgba(0,210,255,0.08) 0%, transparent 75%)', filter: 'blur(60px)', zIndex: 1 }} />
       
-      {/* Background ambient stars (simulated with standard CSS box-shadows) */}
+      {/* 3D Flippable cyber deck console card */}
       <div 
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px), radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px)',
-          backgroundSize: '550px 550px, 350px 350px',
-          backgroundPosition: '0 0, 40px 60px',
-          opacity: 0.12,
-          pointerEvents: 'none',
-          zIndex: 1
-        }}
-      />
-
-      {/* Main Glass Panel Card */}
-      <div 
-        className="glass-panel glow-ring"
+        ref={cardRef}
+        onMouseMove={handleCardMouseMove}
+        onMouseLeave={handleCardMouseLeave}
         style={{
           width: '100%',
-          maxWidth: '460px',
-          padding: '40px',
+          maxWidth: '440px',
+          height: '590px',
           position: 'relative',
-          zIndex: 2,
-          animation: 'fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch'
+          transformStyle: 'preserve-3d',
+          transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tab === 'register' ? 180 + tilt.y : tilt.y}deg) scale3d(${tilt.scale}, ${tilt.scale}, ${tilt.scale})`,
+          transition: tilt.transition,
+          zIndex: 10
         }}
       >
-        {/* Header Branding */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div 
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, var(--color-violet) 0%, var(--color-cyan) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-              boxShadow: '0 0 25px var(--color-violet-glow)',
-              fontSize: '2rem',
-              fontWeight: 800,
-              color: '#fff',
-              animation: 'spinSlow 15s linear infinite'
-            }}
-          >
-            Æ
+        {/* FRONT DECK (Login Form Panel + Forgot/Verification Sub-panels) */}
+        <div 
+          className="glass-panel glow-ring"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            padding: '36px',
+            borderRadius: 'var(--radius-lg)',
+            background: 'rgba(4, 8, 24, 0.78)',
+            borderWidth: '1px',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(20px)',
+            backfaceVisibility: 'hidden',
+            transform: 'rotateY(0deg)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}
+        >
+          {/* Header & Biometric scanner */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', borderBottom: '1px solid rgba(0, 210, 255, 0.15)', paddingBottom: '14px' }}>
+            <div style={{ position: 'relative', width: '56px', height: '56px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid rgba(0, 210, 255, 0.25)' }}>
+              <canvas ref={setFrontScanCanvas} style={{ display: 'block', width: '100%', height: '100%' }} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: 0 }}>
+                AETHER AI OS
+              </h2>
+              <div style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '2px' }}>
+                {tab === 'login' && 'Terminal link requested'}
+                {tab === 'forgot' && 'Credential recovery portal'}
+                {tab === 'verify' && 'Confirm security codes'}
+                {tab === 'verify-reset' && 'Sync new keyphrase codes'}
+              </div>
+            </div>
           </div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '8px' }}>
-            AETHER AI OS
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            {tab === 'login' && 'System terminal authorization required.'}
-            {tab === 'register' && 'Enroll a new biometric intelligence node.'}
-            {tab === 'forgot' && 'Synchronize security credentials.'}
-            {tab === 'verify' && 'Biometric telemetry code validation.'}
-            {tab === 'verify-reset' && 'Credential recovery validation.'}
-          </p>
+
+          {/* Form Switchers */}
+          {tab !== 'verify' && tab !== 'verify-reset' && tab !== 'forgot' && (
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
+              <button 
+                onClick={() => { setTab('login'); resetMessages(); playTabSlide(); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: tab === 'login' ? 'var(--color-cyan)' : 'var(--text-muted)',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  paddingBottom: '8px',
+                  borderBottom: tab === 'login' ? '2px solid var(--color-cyan)' : '2px solid transparent',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                Login
+              </button>
+              <button 
+                onClick={() => { setTab('register'); resetMessages(); playTabSlide(); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  paddingBottom: '8px',
+                  borderBottom: '2px solid transparent',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                Register
+              </button>
+            </div>
+          )}
+
+          {/* Alerts */}
+          {error && (
+            <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '0.8rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldAlert size={14} /> <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '0.8rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Check size={14} /> <span>{success}</span>
+            </div>
+          )}
+
+          {simulatedMail && (
+            <div style={{ background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed var(--color-cyan)', color: 'var(--color-cyan)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '0.8rem', marginBottom: '16px' }}>
+              🔑 Sandbox OTP Code: <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{simulatedMail}</strong>
+            </div>
+          )}
+
+          {/* Login Form */}
+          {tab === 'login' && (
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Mail size={16} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="email" 
+                  placeholder="Secure Email Address" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', fontSize: '0.85rem', borderRadius: 'var(--radius-md)' }}
+                  value={email}
+                  onFocus={playMechClick}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Lock size={16} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="password" 
+                  placeholder="Access Keyphrase" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', fontSize: '0.85rem', borderRadius: 'var(--radius-md)' }}
+                  value={password}
+                  onFocus={playMechClick}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    style={{ accentColor: 'var(--color-violet)' }}
+                  />
+                  Remember me
+                </label>
+                <span 
+                  onClick={() => { setTab('forgot'); resetMessages(); playTabSlide(); }}
+                  style={{ cursor: 'pointer', color: 'var(--color-cyan)' }}
+                >
+                  Forgot password?
+                </span>
+              </div>
+
+              <button type="submit" className="cyber-btn" style={{ marginTop: '10px', fontSize: '0.85rem', padding: '11px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(90deg, #7c3aed 0%, #c084fc 100%)' }} disabled={loading}>
+                {loading ? 'Validating Link...' : 'Authenticate →'}
+              </button>
+            </form>
+          )}
+
+          {/* Forgot credentials Form */}
+          {tab === 'forgot' && (
+            <form onSubmit={handleForgot} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                🔑 Enter email address to receive an OTP code to reset credentials.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Mail size={16} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="email" 
+                  placeholder="Registered Email" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', fontSize: '0.85rem', borderRadius: 'var(--radius-md)' }}
+                  value={email}
+                  onFocus={playMechClick}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="cyber-btn" style={{ marginTop: '6px' }} disabled={loading}>
+                {loading ? 'Requesting Reset...' : 'Request Code'}
+              </button>
+
+              <span 
+                onClick={() => { setTab('login'); resetMessages(); playTabSlide(); }}
+                style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--color-cyan)', cursor: 'pointer', marginTop: '6px' }}
+              >
+                Back to Login
+              </span>
+            </form>
+          )}
+
+          {/* Validation Form */}
+          {tab === 'verify' && (
+            <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                Confirm code for: <strong style={{ color: '#fff' }}>{email}</strong>
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Lock size={16} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="text" 
+                  placeholder="6-digit code" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', letterSpacing: '0.25em', textAlign: 'center', fontSize: '0.85rem', borderRadius: 'var(--radius-md)' }}
+                  value={code}
+                  onFocus={playMechClick}
+                  onChange={e => setCode(e.target.value)}
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="cyber-btn" disabled={loading}>
+                Verify & Authorize
+              </button>
+
+              <span 
+                onClick={() => { setTab('login'); resetMessages(); playTabSlide(); }}
+                style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)', cursor: 'pointer', marginTop: '6px' }}
+              >
+                Cancel Validation
+              </span>
+            </form>
+          )}
+
+          {/* Reset password Form */}
+          {tab === 'verify-reset' && (
+            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Lock size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="text" 
+                  placeholder="Recovery Code" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
+                  value={code}
+                  onFocus={playMechClick}
+                  onChange={e => setCode(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Lock size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="password" 
+                  placeholder="New Password" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
+                  value={password}
+                  onFocus={playMechClick}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <Lock size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
+                <input 
+                  type="password" 
+                  placeholder="Confirm New Password" 
+                  className="cyber-input"
+                  style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
+                  value={confirmPassword}
+                  onFocus={playMechClick}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className="cyber-btn" disabled={loading}>
+                Save Password
+              </button>
+            </form>
+          )}
+
+
+
         </div>
 
-        {/* Errors & Alerts */}
-        {error && (
-          <div 
-            style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#ef4444',
-              borderRadius: 'var(--radius-sm)',
-              padding: '12px 16px',
-              fontSize: '0.88rem',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              animation: 'fadeIn 0.3s ease'
-            }}
-          >
-            <ShieldAlert size={18} />
-            <span>{error}</span>
+        {/* BACK DECK (Register Form Panel - Rotated 180 deg) */}
+        <div 
+          className="glass-panel glow-ring"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            padding: '36px',
+            borderRadius: 'var(--radius-lg)',
+            background: 'rgba(4, 12, 32, 0.78)',
+            borderWidth: '1px',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(20px)',
+            backfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}
+        >
+          {/* Header & Biometric scanner */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', borderBottom: '1px solid rgba(0, 210, 255, 0.15)', paddingBottom: '14px' }}>
+            <div style={{ position: 'relative', width: '56px', height: '56px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid rgba(0, 210, 255, 0.25)' }}>
+              <canvas ref={setBackScanCanvas} style={{ display: 'block', width: '100%', height: '100%' }} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: 0 }}>
+                AETHER AI OS
+              </h2>
+              <div style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '2px' }}>
+                Enroll operator node
+              </div>
+            </div>
           </div>
-        )}
 
-        {success && (
-          <div 
-            style={{
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              color: '#10b981',
-              borderRadius: 'var(--radius-sm)',
-              padding: '12px 16px',
-              fontSize: '0.88rem',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              animation: 'fadeIn 0.3s ease'
-            }}
-          >
-            <Check size={18} />
-            <span>{success}</span>
-          </div>
-        )}
-
-        {/* Dynamic Sandbox Mailbox Notification */}
-        {simulatedMail && (
-          <div 
-            style={{
-              background: 'rgba(6, 182, 212, 0.08)',
-              border: '1px dashed var(--color-cyan)',
-              color: 'var(--color-cyan)',
-              borderRadius: 'var(--radius-md)',
-              padding: '14px',
-              fontSize: '0.85rem',
-              marginBottom: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              animation: 'fadeIn 0.5s ease'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
-              <Sparkles size={14} />
-              <span>Simulated Device Inbox // Sandbox Telemetry</span>
-            </div>
-            <span>Use code: <strong style={{ fontSize: '1.05rem', letterSpacing: '0.1em', color: '#fff' }}>{simulatedMail}</strong></span>
-          </div>
-        )}
-
-        {/* Forms */}
-        {tab === 'login' && (
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="email" 
-                placeholder="Secure Email Address" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px' }}
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="password" 
-                placeholder="Access Keyphrase" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px' }}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
-                <input 
-                  type="checkbox" 
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  style={{ accentColor: 'var(--color-violet)' }}
-                />
-                Remember Authorization
-              </label>
-              <span 
-                onClick={() => { setTab('forgot'); resetMessages(); }}
-                style={{ cursor: 'pointer', color: 'var(--color-cyan)', hover: { textDecoration: 'underline' } }}
-              >
-                Reset Credentials?
-              </span>
-            </div>
-
-            <button type="submit" className="cyber-btn" style={{ marginTop: '12px' }} disabled={loading}>
-              {loading ? 'Validating Telemetry...' : 'Authenticate'}
+          {/* Form Switchers */}
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
+            <button 
+              onClick={() => { setTab('login'); resetMessages(); playTabSlide(); }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                paddingBottom: '8px',
+                borderBottom: '2px solid transparent',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Login
             </button>
+            <button 
+              onClick={() => { setTab('register'); resetMessages(); playTabSlide(); }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-cyan)',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                paddingBottom: '8px',
+                borderBottom: '2px solid var(--color-cyan)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Register
+            </button>
+          </div>
 
-            <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-              First session?{' '}
-              <span 
-                onClick={() => { setTab('register'); resetMessages(); }}
-                style={{ color: 'var(--color-violet)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Create Node.
-              </span>
-            </p>
-          </form>
-        )}
+          {/* Alerts */}
+          {error && (
+            <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '0.8rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldAlert size={14} /> <span>{error}</span>
+            </div>
+          )}
 
-        {tab === 'register' && (
-          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 8px', lineHeight: 1.4 }}>
-              🔒 A secure 6-digit OTP verification code will be sent directly to your email inbox to enroll your node.
-            </p>
+          {success && (
+            <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '0.8rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Check size={14} /> <span>{success}</span>
+            </div>
+          )}
+
+          {simulatedMail && (
+            <div style={{ background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed var(--color-cyan)', color: 'var(--color-cyan)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: '0.8rem', marginBottom: '16px' }}>
+              🔑 Sandbox OTP Code: <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{simulatedMail}</strong>
+            </div>
+          )}
+
+          {/* Register Form */}
+          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <User size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
+              <User size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
               <input 
                 type="text" 
-                placeholder="Operational Name (Optional)" 
+                placeholder="Username (Optional)" 
                 className="cyber-input"
-                style={{ paddingLeft: '48px' }}
+                style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
                 value={displayName}
+                onFocus={playMechClick}
                 onChange={e => setDisplayName(e.target.value)}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
+              <Mail size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
               <input 
                 type="email" 
-                placeholder="Secure Email Address" 
+                placeholder="Email address" 
                 className="cyber-input"
-                style={{ paddingLeft: '48px' }}
+                style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
                 value={email}
+                onFocus={playMechClick}
                 onChange={e => setEmail(e.target.value)}
                 required
               />
             </div>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
+              <Lock size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
               <input 
                 type="password" 
-                placeholder="Secret Keyphrase" 
+                placeholder="Password" 
                 className="cyber-input"
-                style={{ paddingLeft: '48px' }}
+                style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
                 value={password}
+                onFocus={playMechClick}
                 onChange={e => setPassword(e.target.value)}
                 required
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
+              <Lock size={15} style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--text-muted)' }} />
               <input 
                 type="password" 
-                placeholder="Confirm Keyphrase" 
+                placeholder="Confirm password" 
                 className="cyber-input"
-                style={{ paddingLeft: '48px' }}
+                style={{ paddingLeft: '42px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
                 value={confirmPassword}
+                onFocus={playMechClick}
                 onChange={e => setConfirmPassword(e.target.value)}
                 required
               />
             </div>
 
-            <button type="submit" className="cyber-btn" style={{ marginTop: '12px' }} disabled={loading}>
-              {loading ? 'Enrolling Node...' : 'Enroll Operator'}
-            </button>
-
-            <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-              Already registered?{' '}
-              <span 
-                onClick={() => { setTab('login'); resetMessages(); }}
-                style={{ color: 'var(--color-violet)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Log In.
-              </span>
-            </p>
-          </form>
-        )}
-
-        {tab === 'forgot' && (
-          <form onSubmit={handleForgot} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 8px', lineHeight: 1.4 }}>
-              🔑 Enter your registered email address. We will email you a secure OTP recovery code to reset your access keyphrase.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="email" 
-                placeholder="Registered Email Address" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px' }}
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <button type="submit" className="cyber-btn" style={{ marginTop: '12px' }} disabled={loading}>
-              {loading ? 'Locating Node...' : 'Request Credentials Reset'}
-            </button>
-
-            <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-              Go back to{' '}
-              <span 
-                onClick={() => { setTab('login'); resetMessages(); }}
-                style={{ color: 'var(--color-violet)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Authorization.
-              </span>
-            </p>
-          </form>
-        )}
-
-        {tab === 'verify' && (
-          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.5 }}>
-              Confirm your operational email code for: <br />
-              <strong style={{ color: '#fff' }}>{email}</strong>
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="text" 
-                placeholder="6-Digit Telemetry Code" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px', letterSpacing: '0.2em', textAlign: 'center' }}
-                value={code}
-                onChange={e => setCode(e.target.value)}
-                maxLength={6}
-                required
-              />
-            </div>
-
-            <div style={{ padding: '12px', background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed var(--color-cyan)', borderRadius: 'var(--radius-md)', fontSize: '0.8rem', color: 'var(--color-cyan)', lineHeight: 1.4, textAlign: 'center' }}>
-              💡 <strong>Did not get the email?</strong> System network firewall may block delivery. Enter this fallback sandbox telemetry code: <strong style={{ color: '#fff', fontSize: '0.92rem', letterSpacing: '0.05em' }}>{simulatedMail || '123456'}</strong>
-            </div>
-
-            <button type="submit" className="cyber-btn" disabled={loading}>
-              {loading ? 'Confirming telemetry...' : 'Verify & Authorize'}
-            </button>
-
-            <p 
-              onClick={() => { setTab('login'); resetMessages(); }}
-              style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer', hover: { textDecoration: 'underline' } }}
-            >
-              Cancel Authorization
-            </p>
-          </form>
-        )}
-
-        {tab === 'verify-reset' && (
-          <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="text" 
-                placeholder="Recovery Code (Check Sandbox Info)" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px', textAlign: 'center', letterSpacing: '0.1em' }}
-                value={code}
-                onChange={e => setCode(e.target.value)}
-                required
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="password" 
-                placeholder="New Access Keyphrase" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px' }}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-              <input 
-                type="password" 
-                placeholder="Confirm New Keyphrase" 
-                className="cyber-input"
-                style={{ paddingLeft: '48px' }}
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <div style={{ padding: '12px', background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed var(--color-cyan)', borderRadius: 'var(--radius-md)', fontSize: '0.8rem', color: 'var(--color-cyan)', lineHeight: 1.4, textAlign: 'center' }}>
-              💡 <strong>Did not get the recovery email?</strong> Enter this fallback sandbox recovery code: <strong style={{ color: '#fff', fontSize: '0.92rem', letterSpacing: '0.05em' }}>{simulatedMail || '123456'}</strong>
-            </div>
-
-            <button type="submit" className="cyber-btn" disabled={loading}>
-              {loading ? 'Re-writing Credentials...' : 'Save Credentials'}
+            <button type="submit" className="cyber-btn" style={{ marginTop: '8px', fontSize: '0.82rem', padding: '10px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(90deg, #7c3aed 0%, #c084fc 100%)' }} disabled={loading}>
+              {loading ? 'Enrolling Node...' : 'Register Operator →'}
             </button>
           </form>
-        )}
+        </div>
+
       </div>
 
       {successUser && (
@@ -579,12 +709,11 @@ export const AuthScreen = ({ onAuthSuccess }) => {
 const SuccessGrantedOverlay = ({ user, onComplete }) => {
   const canvasRef = useRef(null);
   
-  // Random configurations generated once per login mount!
   const [particleConfig] = useState(() => {
     const baseHue = Math.floor(Math.random() * 360);
     const splitHue = (baseHue + 120 + Math.floor(Math.random() * 120)) % 360;
-    const count = 75 + Math.floor(Math.random() * 65); // 75 to 140
-    const speedMult = 1.8 + Math.random() * 4.5;
+    const count = 90 + Math.floor(Math.random() * 70);
+    const speedMult = 2.4 + Math.random() * 4.0;
     return { baseHue, splitHue, count, speedMult };
   });
 
@@ -608,13 +737,12 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
     resize();
     window.addEventListener('resize', resize);
 
-    // Initial blast with fully randomized counts, speeds, and color spectra!
     const pCount = particleConfig.count;
     const speedMultiplier = particleConfig.speedMult;
     for (let i = 0; i < pCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = (1 + Math.random() * 4) * speedMultiplier;
-      const hue = Math.random() > 0.48 ? particleConfig.baseHue : particleConfig.splitHue;
+      const speed = (1 + Math.random() * 4.5) * speedMultiplier;
+      const hue = Math.random() > 0.5 ? particleConfig.baseHue : particleConfig.splitHue;
       particles.push({
         x: canvas.width / 2,
         y: canvas.height / 2,
@@ -623,24 +751,24 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
         size: 1.5 + Math.random() * 3.5,
         color: `hsla(${hue}, 95%, 60%, 1)`,
         alpha: 1,
-        decay: 0.01 + Math.random() * 0.015
+        decay: 0.008 + Math.random() * 0.012
       });
     }
 
     const draw = () => {
-      ctx.fillStyle = 'rgba(2, 2, 10, 0.22)';
+      ctx.fillStyle = 'rgba(2, 2, 10, 0.25)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.01;
+        p.vy += 0.008;
         p.alpha -= p.decay;
 
         if (p.alpha <= 0) {
           const angle = Math.random() * Math.PI * 2;
-          p.x = canvas.width / 2 + (Math.random() - 0.5) * 40;
-          p.y = canvas.height / 2 + (Math.random() - 0.5) * 40;
+          p.x = canvas.width / 2 + (Math.random() - 0.5) * 30;
+          p.y = canvas.height / 2 + (Math.random() - 0.5) * 30;
           p.vx = Math.cos(angle) * (1 + Math.random() * 2);
           p.vy = Math.sin(angle) * (1 + Math.random() * 2);
           p.alpha = 1;
@@ -665,7 +793,7 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
       window.removeEventListener('resize', resize);
       cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [canvasRef.current]);
 
   return (
     <div 
@@ -680,10 +808,7 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
         justifyContent: 'center'
       }}
     >
-      <canvas 
-        ref={canvasRef} 
-        style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} 
-      />
+      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
       
       <div 
         style={{
@@ -691,13 +816,13 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
           textAlign: 'center',
           padding: '40px 30px',
           borderRadius: 'var(--radius-lg)',
-          background: 'rgba(5, 2, 25, 0.75)',
-          border: '1px solid rgba(16, 185, 129, 0.35)',
-          boxShadow: '0 0 40px rgba(16, 185, 129, 0.18)',
+          background: 'rgba(5, 2, 25, 0.8)',
+          border: '1px solid rgba(16, 185, 129, 0.45)',
+          boxShadow: '0 0 40px rgba(16, 185, 129, 0.22)',
           backdropFilter: 'blur(12px)',
           maxWidth: '430px',
           width: '90%',
-          animation: 'scaleUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          animation: 'scaleUp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)'
         }}
       >
         <div 

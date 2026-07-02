@@ -17,6 +17,7 @@ function App() {
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [queryUsage, setQueryUsage] = useState(() => parseInt(localStorage.getItem('aether_query_usage') || '0', 10));
 
   // Initialize and check active sessions
   useEffect(() => {
@@ -238,6 +239,15 @@ function App() {
   };
 
   const handleSendMessage = (text, file) => {
+    const currentUsage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
+    if (currentUsage >= 15) {
+      alert('⚠️ COGNITIVE QUOTA EXHAUSTED: Synapse sync quota limit reached (15/15 cycles). Please wait 24h or refresh your operational core key.');
+      return;
+    }
+    const newUsage = currentUsage + 1;
+    localStorage.setItem('aether_query_usage', newUsage.toString());
+    setQueryUsage(newUsage);
+
     let currentChats = [...chats];
     let activeId = activeChatId;
 
@@ -511,12 +521,14 @@ function App() {
               onSendMessage={handleSendMessage}
               onUpdateMessage={handleUpdateMessage}
               onRegenerateMessage={handleRegenerateMessage}
+              queryUsage={queryUsage}
             />
           ) : (
             <HomeView 
               user={currentUser} 
               onSelectSuggestion={handleSendMessage}
               onQuickAction={setInput => handleSendMessage(setInput)}
+              queryUsage={queryUsage}
             />
           )}
         </AppShell>

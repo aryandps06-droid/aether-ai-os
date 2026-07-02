@@ -6,7 +6,7 @@ import {
   RefreshCw, Play, Share2, CornerDownRight, Search, FileText, Check, AlertCircle, X, Sparkles 
 } from 'lucide-react';
 
-export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMessage, queryUsage = 0 }) => {
+export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMessage, queryUsage = 0, onResetUsage }) => {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [speechActiveId, setSpeechActiveId] = useState(null); // ID of message currently being spoken
@@ -17,6 +17,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
   const [searchStates, setSearchStates] = useState({}); // tracking simulated search per streaming message
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [timerStr, setTimerStr] = useState('');
 
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -24,6 +25,33 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
 
   const isStreaming = chat?.messages.length > 0 && chat.messages[chat.messages.length - 1].isStreaming;
   const remainingCycles = 15 - queryUsage;
+
+  // Real-time 10-minute cooldown timer loop
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = Date.now();
+      const resetTime = parseInt(localStorage.getItem('aether_query_reset_time') || '0', 10);
+      const usage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
+
+      if (resetTime && usage > 0) {
+        const secondsLeft = Math.ceil((resetTime - now) / 1000);
+        if (secondsLeft > 0) {
+          const mins = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
+          const secs = (secondsLeft % 60).toString().padStart(2, '0');
+          setTimerStr(`${mins}:${secs}`);
+        } else {
+          setTimerStr('');
+          if (onResetUsage) onResetUsage();
+        }
+      } else {
+        setTimerStr('');
+      }
+    };
+
+    updateTimer(); // initial tick
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [onResetUsage, queryUsage]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -356,7 +384,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
           {/* Neon progress cycles counter */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
             <span style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: remainingCycles <= 3 ? '#ef4444' : 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Cognitive Cycles: {remainingCycles} / 15 Remaining
+              Cognitive Cycles: {remainingCycles} / 15 Remaining {timerStr && `[Reset: ${timerStr}]`}
             </span>
             <div style={{ width: '120px', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
               <div style={{ width: `${Math.max(0, (remainingCycles / 15) * 100)}%`, height: '100%', background: remainingCycles <= 3 ? '#ef4444' : 'linear-gradient(90deg, var(--color-cyan) 0%, var(--color-emerald) 100%)', boxShadow: remainingCycles <= 3 ? '0 0 8px #ef4444' : '0 0 8px rgba(16, 185, 129, 0.5)' }} />

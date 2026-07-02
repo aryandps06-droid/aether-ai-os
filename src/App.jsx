@@ -238,13 +238,37 @@ function App() {
     }
   };
 
+  const handleResetUsage = () => {
+    localStorage.setItem('aether_query_usage', '0');
+    localStorage.setItem('aether_query_reset_time', '0');
+    setQueryUsage(0);
+  };
+
   const handleSendMessage = (text, file) => {
-    const currentUsage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
+    const now = Date.now();
+    let currentUsage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
+    let resetTime = parseInt(localStorage.getItem('aether_query_reset_time') || '0', 10);
+
+    if (resetTime && now > resetTime) {
+      currentUsage = 0;
+      resetTime = 0;
+      localStorage.setItem('aether_query_usage', '0');
+      localStorage.setItem('aether_query_reset_time', '0');
+    }
+
     if (currentUsage >= 15) {
-      alert('⚠️ COGNITIVE QUOTA EXHAUSTED: Synapse sync quota limit reached (15/15 cycles). Please wait 24h or refresh your operational core key.');
+      alert('⚠️ COGNITIVE QUOTA EXHAUSTED: Synapse sync quota limit reached (15/15 cycles). Please wait for the 10-minute cooldown to reset.');
       return;
     }
+
     const newUsage = currentUsage + 1;
+    let newResetTime = resetTime;
+
+    if (newUsage === 1 || !resetTime) {
+      newResetTime = now + 600000; // 10 minutes = 600,000 ms
+      localStorage.setItem('aether_query_reset_time', newResetTime.toString());
+    }
+
     localStorage.setItem('aether_query_usage', newUsage.toString());
     setQueryUsage(newUsage);
 
@@ -522,6 +546,7 @@ function App() {
               onUpdateMessage={handleUpdateMessage}
               onRegenerateMessage={handleRegenerateMessage}
               queryUsage={queryUsage}
+              onResetUsage={handleResetUsage}
             />
           ) : (
             <HomeView 

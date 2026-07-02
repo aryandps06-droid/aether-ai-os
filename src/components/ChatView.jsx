@@ -181,6 +181,29 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
     let tableRows = [];
     let isTable = false;
 
+    // Inline markdown parser — handles **bold**, *italic*, `code`
+    const renderInline = (str) => {
+      if (!str) return null;
+      const parts = [];
+      const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`)/g;
+      let lastIndex = 0;
+      let match;
+      let ki = 0;
+      while ((match = regex.exec(str)) !== null) {
+        if (match.index > lastIndex) parts.push(str.slice(lastIndex, match.index));
+        if (match[2] !== undefined) {
+          parts.push(<strong key={ki++} style={{ color: '#ffffff', fontWeight: 700 }}>{match[2]}</strong>);
+        } else if (match[3] !== undefined) {
+          parts.push(<em key={ki++} style={{ color: 'var(--color-cyan)', fontStyle: 'italic' }}>{match[3]}</em>);
+        } else if (match[4] !== undefined) {
+          parts.push(<code key={ki++} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '4px', padding: '1px 6px', fontSize: '0.85em', color: '#10b981', fontFamily: 'var(--font-mono)' }}>{match[4]}</code>);
+        }
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < str.length) parts.push(str.slice(lastIndex));
+      return parts.length > 0 ? parts : str;
+    };
+
     lines.forEach((line, index) => {
       // 1. Code Block parsing
       if (line.trim().startsWith('```')) {
@@ -221,24 +244,18 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
         tableRows.push(line);
         return;
       } else if (isTable) {
-        // Output table
         const rows = tableRows.map(r => r.split('|').map(cell => cell.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1));
         const headers = rows[0];
-        const bodyRows = rows.slice(2); // Skip separator row
-
+        const bodyRows = rows.slice(2);
         elements.push(
           <div key={`table-${index}`} style={{ overflowX: 'auto', margin: '14px 0', width: '100%' }}>
             <table className="markdown-table">
               <thead>
-                <tr>
-                  {headers.map((h, i) => <th key={i}>{h}</th>)}
-                </tr>
+                <tr>{headers.map((h, i) => <th key={i}>{renderInline(h)}</th>)}</tr>
               </thead>
               <tbody>
                 {bodyRows.map((row, rIdx) => (
-                  <tr key={rIdx}>
-                    {row.map((cell, cIdx) => <td key={cIdx}>{cell}</td>)}
-                  </tr>
+                  <tr key={rIdx}>{row.map((cell, cIdx) => <td key={cIdx}>{renderInline(cell)}</td>)}</tr>
                 ))}
               </tbody>
             </table>
@@ -248,33 +265,58 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
         isTable = false;
       }
 
-      // 3. LaTeX Equation Block parsing
+      // 3. LaTeX Equation Block
       if (line.trim().startsWith('$$') && line.trim().endsWith('$$') && line.trim().length > 4) {
-        const formula = line.trim().slice(2, -2);
+        elements.push(<div key={`latex-${index}`} className="latex-block">{line.trim().slice(2, -2)}</div>);
+        return;
+      }
+
+      // 4. Headings (###, ##, #)
+      const h3 = line.match(/^###\s+(.*)/);
+      const h2 = line.match(/^##\s+(.*)/);
+      const h1 = line.match(/^#\s+(.*)/);
+      if (h3) { elements.push(<h3 key={`h3-${index}`} style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-cyan)', margin: '18px 0 8px', letterSpacing: '0.02em' }}>{renderInline(h3[1])}</h3>); return; }
+      if (h2) { elements.push(<h2 key={`h2-${index}`} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: '20px 0 10px' }}>{renderInline(h2[1])}</h2>); return; }
+      if (h1) { elements.push(<h1 key={`h1-${index}`} style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', margin: '22px 0 12px' }}>{renderInline(h1[1])}</h1>); return; }
+
+      // 5. Blockquote (> text)
+      if (line.trim().startsWith('> ')) {
         elements.push(
-          <div key={`latex-${index}`} className="latex-block">
-            {formula}
+          <div key={`bq-${index}`} style={{ borderLeft: '3px solid var(--color-violet)', paddingLeft: '12px', margin: '8px 0', color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+            {renderInline(line.trim().slice(2))}
           </div>
         );
         return;
       }
 
-      // 4. Bullet lists
+      // 6. Numbered lists (1. 2. 3.)
+      const numMatch = line.match(/^(\d+)\.\s+(.*)/);
+      if (numMatch) {
+        elements.push(
+          <div key={`num-${index}`} style={{ display: 'flex', gap: '10px', paddingLeft: '10px', margin: '5px 0', fontSize: '0.9rem' }}>
+            <span style={{ color: 'var(--color-cyan)', fontWeight: 700, minWidth: '18px' }}>{numMatch[1]}.</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{renderInline(numMatch[2])}</span>
+          </div>
+        );
+        return;
+      }
+
+      // 7. Bullet lists (* or -)
       if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
         elements.push(
           <div key={`bullet-${index}`} style={{ display: 'flex', gap: '8px', paddingLeft: '10px', margin: '4px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
             <span style={{ color: 'var(--color-cyan)' }}>•</span>
-            <span>{line.trim().slice(2)}</span>
+            <span>{renderInline(line.trim().slice(2))}</span>
           </div>
         );
         return;
       }
 
-      // 5. Default paragraphs
+      // 8. Default paragraphs with inline markdown
       if (line.trim()) {
         elements.push(
           <p key={`p-${index}`} style={{ margin: '0 0 10px', fontSize: '0.92rem', lineHeight: 1.55, color: 'var(--text-primary)' }}>
-            {line}
+            {renderInline(line)}
           </p>
         );
       }

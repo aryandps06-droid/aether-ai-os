@@ -357,17 +357,15 @@ Based on these sources, commercial silicon qubits are scaling 18 months ahead of
   const subject = cleanQuery(prompt);
   const titleSubject = subject ? capitalize(subject) : "Inquiry";
 
-  return `I have parsed your prompt regarding **${titleSubject}**. 
+  return `I have parsed your prompt regarding **${titleSubject}**.
 
-Historically and theoretically, **${titleSubject}** is a complex topic that involves several overlapping components. Depending on the exact context, here are the primary areas of interest:
+Historically and theoretically, **${titleSubject}** is a complex topic with several overlapping components. Here are the primary areas of interest:
 
-1.  **Fundamental Principles**: The basic properties, definitions, or core values that shape the subject.
-2.  **Practical Application**: How this concept interacts in real-world systems, studies, or code implementations.
-3.  **Modern Perspectives**: How this subject has evolved with recent scientific research or technological tools.
+1. **Fundamental Principles**: The core properties, definitions, or values that define the subject.
+2. **Practical Application**: How this concept is applied in real-world systems, research, or code.
+3. **Modern Perspectives**: How this subject has evolved with recent scientific and technological advances.
 
-Would you like me to write a specific code script, mathematical model, or history overview relating to this?
-
-*(💡 Pro-Tip: You can secure real-time live answers to any question by pasting your Gemini API Key in the settings panel—click the gear icon in the bottom-left).*`;
+Would you like me to dive deeper into any of these areas? Try asking me something more specific — like a code script, a math problem, a biology concept, or a history topic!`;
 }
 
 

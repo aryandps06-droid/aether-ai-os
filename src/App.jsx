@@ -237,9 +237,32 @@ function App() {
     }
   };
 
+  const MAX_MESSAGES_PER_CHAT = 10;
+
   const handleSendMessage = (text, file) => {
     let currentChats = [...chats];
     let activeId = activeChatId;
+
+    // Enforce 10 user-message limit per chat session to protect API quota
+    if (activeId) {
+      const existingChat = currentChats.find(c => c.id === activeId);
+      if (existingChat) {
+        const userMsgCount = existingChat.messages.filter(m => m.sender === 'user').length;
+        if (userMsgCount >= MAX_MESSAGES_PER_CHAT) {
+          const limitMsg = {
+            id: 'msg-limit-' + Date.now(),
+            sender: 'assistant',
+            text: `⚠️ **Session Message Limit Reached** (${MAX_MESSAGES_PER_CHAT} messages per thread).\n\nTo protect your API quota and keep responses fast, each chat thread is limited to **${MAX_MESSAGES_PER_CHAT} exchanges**.\n\n👉 Click **Initialize Chat Node** in the sidebar to start a fresh thread and continue chatting!`,
+            isStreaming: false,
+            timestamp: new Date().toISOString()
+          };
+          const updatedChat = { ...existingChat, messages: [...existingChat.messages, limitMsg] };
+          const updatedChats = currentChats.map(c => c.id === activeId ? updatedChat : c);
+          saveChats(updatedChats);
+          return;
+        }
+      }
+    }
 
     const userMessage = {
       id: 'msg-' + Date.now(),

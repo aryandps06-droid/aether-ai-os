@@ -68,7 +68,6 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
   const handleSend = (e) => {
     e.preventDefault();
     if (isStreaming) return;
-    if (remainingCycles <= 0) return;
     if (!input.trim() && !fileAttachment) return;
 
     const messageText = input;
@@ -97,7 +96,6 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
       recognitionRef.current.stop();
     } else {
       setIsRecording(true);
-      resetMessages();
       try {
         recognitionRef.current.start();
       } catch (err) {

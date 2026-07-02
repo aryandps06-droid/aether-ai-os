@@ -6,7 +6,7 @@ import {
   RefreshCw, Play, Share2, CornerDownRight, Search, FileText, Check, AlertCircle, X, Sparkles 
 } from 'lucide-react';
 
-export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMessage, queryUsage = 0, onResetUsage }) => {
+export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMessage }) => {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [speechActiveId, setSpeechActiveId] = useState(null); // ID of message currently being spoken
@@ -17,41 +17,12 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
   const [searchStates, setSearchStates] = useState({}); // tracking simulated search per streaming message
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState('');
-  const [timerStr, setTimerStr] = useState('');
 
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
 
   const isStreaming = chat?.messages.length > 0 && chat.messages[chat.messages.length - 1].isStreaming;
-  const remainingCycles = 15 - queryUsage;
-
-  // Real-time 10-minute cooldown timer loop
-  useEffect(() => {
-    const updateTimer = () => {
-      const now = Date.now();
-      const resetTime = parseInt(localStorage.getItem('aether_query_reset_time') || '0', 10);
-      const usage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
-
-      if (resetTime && usage > 0) {
-        const secondsLeft = Math.ceil((resetTime - now) / 1000);
-        if (secondsLeft > 0) {
-          const mins = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
-          const secs = (secondsLeft % 60).toString().padStart(2, '0');
-          setTimerStr(`${mins}:${secs}`);
-        } else {
-          setTimerStr('');
-          if (onResetUsage) onResetUsage();
-        }
-      } else {
-        setTimerStr('');
-      }
-    };
-
-    updateTimer(); // initial tick
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [onResetUsage, queryUsage]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -381,15 +352,6 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Neon progress cycles counter */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-            <span style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: remainingCycles <= 3 ? '#ef4444' : 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Cognitive Cycles: {remainingCycles} / 15 Remaining {timerStr && `[Reset: ${timerStr}]`}
-            </span>
-            <div style={{ width: '120px', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
-              <div style={{ width: `${Math.max(0, (remainingCycles / 15) * 100)}%`, height: '100%', background: remainingCycles <= 3 ? '#ef4444' : 'linear-gradient(90deg, var(--color-cyan) 0%, var(--color-emerald) 100%)', boxShadow: remainingCycles <= 3 ? '0 0 8px #ef4444' : '0 0 8px rgba(16, 185, 129, 0.5)' }} />
-            </div>
-          </div>
           <button 
             onClick={handleShare}
             className="cyber-btn-secondary"
@@ -693,7 +655,6 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             }}
             className="cyber-btn-secondary"
             title="Attach file payload"
-            disabled={remainingCycles <= 0}
           >
             <Paperclip size={18} />
           </button>
@@ -703,16 +664,15 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             ref={fileInputRef} 
             style={{ display: 'none' }} 
             onChange={handleFileChange}
-            disabled={remainingCycles <= 0}
           />
 
           {/* Text Area */}
           <input 
             type="text"
-            placeholder={remainingCycles <= 0 ? "Cognitive capacity limit reached." : (isStreaming ? "Aether is compiling..." : (fileAttachment ? "Add prompt notes to compile with file..." : "Compile instructions for Aether..."))}
+            placeholder={isStreaming ? "Aether is compiling..." : (fileAttachment ? "Add prompt notes to compile with file..." : "Compile instructions for Aether...")}
             value={input}
             onChange={e => setInput(e.target.value)}
-            disabled={isStreaming || remainingCycles <= 0}
+            disabled={isStreaming}
             style={{
               flex: 1,
               background: 'transparent',
@@ -767,7 +727,6 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             }}
             className="cyber-btn-secondary"
             title="Bio-Voice Recognition input"
-            disabled={remainingCycles <= 0}
           >
             {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
@@ -783,7 +742,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
               boxShadow: 'none',
               background: 'linear-gradient(90deg, #7c3aed 0%, #c084fc 100%)'
             }}
-            disabled={isStreaming || remainingCycles <= 0 || (!input.trim() && !fileAttachment)}
+            disabled={isStreaming || (!input.trim() && !fileAttachment)}
           >
             <Send size={16} />
           </button>

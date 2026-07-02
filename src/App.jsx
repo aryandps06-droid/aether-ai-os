@@ -17,7 +17,6 @@ function App() {
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [queryUsage, setQueryUsage] = useState(() => parseInt(localStorage.getItem('aether_query_usage') || '0', 10));
 
   // Initialize and check active sessions
   useEffect(() => {
@@ -238,40 +237,7 @@ function App() {
     }
   };
 
-  const handleResetUsage = () => {
-    localStorage.setItem('aether_query_usage', '0');
-    localStorage.setItem('aether_query_reset_time', '0');
-    setQueryUsage(0);
-  };
-
   const handleSendMessage = (text, file) => {
-    const now = Date.now();
-    let currentUsage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
-    let resetTime = parseInt(localStorage.getItem('aether_query_reset_time') || '0', 10);
-
-    if (resetTime && now > resetTime) {
-      currentUsage = 0;
-      resetTime = 0;
-      localStorage.setItem('aether_query_usage', '0');
-      localStorage.setItem('aether_query_reset_time', '0');
-    }
-
-    if (currentUsage >= 15) {
-      alert('⚠️ COGNITIVE QUOTA EXHAUSTED: Synapse sync quota limit reached (15/15 cycles). Please wait for the 10-minute cooldown to reset.');
-      return;
-    }
-
-    const newUsage = currentUsage + 1;
-    let newResetTime = resetTime;
-
-    if (newUsage === 1 || !resetTime) {
-      newResetTime = now + 600000; // 10 minutes = 600,000 ms
-      localStorage.setItem('aether_query_reset_time', newResetTime.toString());
-    }
-
-    localStorage.setItem('aether_query_usage', newUsage.toString());
-    setQueryUsage(newUsage);
-
     let currentChats = [...chats];
     let activeId = activeChatId;
 
@@ -538,7 +504,6 @@ function App() {
           onSelectChat={handleSelectChat}
           onCreateNewChat={handleCreateNewChat}
           onDeleteChat={handleDeleteChat}
-          queryUsage={queryUsage}
         >
           {activeChat ? (
             <ChatView 
@@ -546,15 +511,12 @@ function App() {
               onSendMessage={handleSendMessage}
               onUpdateMessage={handleUpdateMessage}
               onRegenerateMessage={handleRegenerateMessage}
-              queryUsage={queryUsage}
-              onResetUsage={handleResetUsage}
             />
           ) : (
             <HomeView 
               user={currentUser} 
               onSelectSuggestion={handleSendMessage}
               onQuickAction={setInput => handleSendMessage(setInput)}
-              queryUsage={queryUsage}
             />
           )}
         </AppShell>

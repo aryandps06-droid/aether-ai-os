@@ -538,6 +538,7 @@ function App() {
           onSelectChat={handleSelectChat}
           onCreateNewChat={handleCreateNewChat}
           onDeleteChat={handleDeleteChat}
+          queryUsage={queryUsage}
         >
           {activeChat ? (
             <ChatView 

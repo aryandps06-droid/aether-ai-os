@@ -4,10 +4,11 @@ import { LogOut, Settings, MessageSquare, Terminal, ChevronLeft, ChevronRight, A
 import { ProfileSettings } from './ProfileSettings';
 import { authSystem } from '../utils/authSystem';
 
-export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, activeChatId, onSelectChat, onCreateNewChat, onDeleteChat }) => {
+export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, activeChatId, onSelectChat, onCreateNewChat, onDeleteChat, queryUsage = 0 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [systemLoad, setSystemLoad] = useState({ cpu: 12, ram: 42, sync: 99.8 });
+  const [timerStr, setTimerStr] = useState('');
   const neuralCoreRef = useRef(null);
 
   // System status fluctuation
@@ -21,6 +22,31 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
     }, 4000);
     return () => clearInterval(timer);
   }, []);
+
+  // Cooldown countdown timer loop for sidebar display
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = Date.now();
+      const resetTime = parseInt(localStorage.getItem('aether_query_reset_time') || '0', 10);
+      const usage = parseInt(localStorage.getItem('aether_query_usage') || '0', 10);
+
+      if (resetTime && usage > 0) {
+        const secondsLeft = Math.ceil((resetTime - now) / 1000);
+        if (secondsLeft > 0) {
+          const mins = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
+          const secs = (secondsLeft % 60).toString().padStart(2, '0');
+          setTimerStr(`${mins}:${secs}`);
+        } else {
+          setTimerStr('');
+        }
+      } else {
+        setTimerStr('');
+      }
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [queryUsage]);
 
   // Auto-collapse sidebar on mobile/tablet widths (<768px)
   useEffect(() => {
@@ -186,6 +212,17 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
             <MessageSquare size={16} />
             Initialize Chat Node
           </button>
+        </div>
+
+        {/* Cognitive cycles indicator inside sidebar */}
+        <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: (15 - queryUsage) <= 3 ? '#ef4444' : 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <span>Cycles: {15 - queryUsage} / 15</span>
+            {timerStr && <span style={{ color: 'var(--color-pink)', textShadow: '0 0 6px rgba(236, 72, 153, 0.4)' }}>{timerStr}</span>}
+          </div>
+          <div style={{ width: '100%', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ width: `${Math.max(0, ((15 - queryUsage) / 15) * 100)}%`, height: '100%', background: (15 - queryUsage) <= 3 ? '#ef4444' : 'linear-gradient(90deg, var(--color-cyan) 0%, var(--color-emerald) 100%)', boxShadow: (15 - queryUsage) <= 3 ? '0 0 8px #ef4444' : '0 0 8px rgba(16, 185, 129, 0.4)' }} />
+          </div>
         </div>
 
         {/* Navigation list */}

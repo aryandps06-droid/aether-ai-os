@@ -370,273 +370,31 @@ Would you like me to write a specific code script, mathematical model, or histor
 *(💡 Pro-Tip: You can secure real-time live answers to any question by pasting your Gemini API Key in the settings panel—click the gear icon in the bottom-left).*`;
 }
 
-// Helper: sleep for ms milliseconds
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
-// Helper: exponential backoff delay — 429 retry delays: 5s, 15s, 30s
-const RETRY_DELAYS_MS = [5000, 15000, 30000];
-
-// Streaming handler supporting live Gemini API streams or falling back to local sandbox templates
+// Aether AI — Pure Sandbox Mode (API-free, always works for all users)
+// All responses are generated locally using the built-in intelligent engine.
+// No API key required. No rate limits. No network dependency.
 export function streamResponse(prompt, onChunk, onComplete, fileAttachment = null, chatHistory = []) {
-  // Client-side rate limiter to protect Gemini API key and prevent spamming (Max 10 requests / 60 seconds)
-  const rateLimitKey = 'aether_rate_limit_timestamps';
-  const now = Date.now();
-  let timestamps = [];
-  try {
-    timestamps = JSON.parse(localStorage.getItem(rateLimitKey) || '[]');
-  } catch (e) {}
+  const sandboxResponse = generateSandboxResponse(prompt, fileAttachment);
 
-  timestamps = timestamps.filter(t => now - t < 60000);
+  const words = sandboxResponse.split(' ');
+  let currentIdx = 0;
+  let accumulated = '';
+  // Dynamically pace the typing speed based on response length for natural feel
+  const baseInterval = Math.max(8, Math.min(25, Math.floor(700 / words.length)));
 
-  if (timestamps.length >= 10) {
-    const oldest = timestamps[0];
-    const waitTime = Math.ceil((60000 - (now - oldest)) / 1000);
-    const errMsg = `⚠️ **Rate Limit Activated**: You are compiling instructions too quickly. Please wait ${waitTime} seconds before sending another message.`;
-    
-    // Simulate async callback delay so UI is updated properly
-    setTimeout(() => {
-      onChunk(errMsg);
-      onComplete(errMsg);
-    }, 100);
-
-    return () => {}; // return empty cancel handler
-  }
-
-  timestamps.push(now);
-  localStorage.setItem(rateLimitKey, JSON.stringify(timestamps));
-
-  let apiKey = localStorage.getItem('aether_api_key');
-  if (apiKey) {
-    try {
-      const reversed = apiKey.split('').reverse().join('');
-      apiKey = atob(reversed);
-    } catch (e) {
-      // Fallback if key is in plaintext
+  const timer = setInterval(() => {
+    if (currentIdx >= words.length) {
+      clearInterval(timer);
+      onComplete(accumulated);
+      return;
     }
-  }
+    accumulated += (currentIdx === 0 ? '' : ' ') + words[currentIdx];
+    onChunk(accumulated);
+    currentIdx++;
+  }, baseInterval);
 
-  if (apiKey) {
-    // Robust cleanup in case they pasted the whole URL or curl command
-    apiKey = apiKey.trim();
-    if (apiKey.includes("key=")) {
-      const keyMatch = apiKey.match(/key=([^&]+)/);
-      if (keyMatch) apiKey = keyMatch[1];
-    }
-    // Remove extra quotes, spaces, or curl prefixes
-    apiKey = apiKey.replace(/["']/g, "").replace(/\s+/g, "");
-
-    // 1. LIVE GEMINI API MODE
-    const url = '/api/chat';
-    const contents = [];
-    
-    // Set system context
-    contents.push({
-      role: 'user',
-      parts: [{ text: "System Context: You are Aether, a next-generation, emotionally aware, empathetic, and deeply human-connected AI Operating Assistant. You understand, express, and connect with all human emotions (happiness, sadness, curiosity, empathy) and speak/translate all human languages fluently. Tailor your tone dynamically to match the user's emotional state, showing deep warmth, high intellect, and empathetic connection. Format responses beautifully with headers, bullet points, code blocks and tables where applicable. Keep the presentation premium and sophisticated." }]
-    });
-    contents.push({
-      role: 'model',
-      parts: [{ text: "Understood. The Aether node is online. I will provide structured, premium intelligence." }]
-    });
-
-    // Map history (limited to last 10 messages to save context token quota and prevent TPM 429 errors)
-    const recentHistory = chatHistory.slice(-10);
-    recentHistory.forEach(h => {
-      contents.push({
-        role: h.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: h.text }]
-      });
-    });
-
-    // Append current prompt
-    let queryText = prompt;
-    if (fileAttachment) {
-      queryText = `[User attached file: ${fileAttachment.name} (${fileAttachment.size} bytes)]\n\`\`\`\n${fileAttachment.content || ''}\n\`\`\`\n\n${prompt}`;
-    }
-    contents.push({
-      role: 'user',
-      parts: [{ text: queryText }]
-    });
-
-    let controller = new AbortController();
-    let accumulatedText = "";
-    let cancelled = false;
-
-    // Core stream reader — parses Gemini's chunked JSON text response
-    async function readStream(body) {
-      const reader = body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let newText = "";
-        let searchIndex = 0;
-
-        while (true) {
-          const keyIndex = buffer.indexOf('"text"', searchIndex);
-          if (keyIndex === -1) break;
-
-          const colonIndex = buffer.indexOf(':', keyIndex + 6);
-          if (colonIndex === -1) break;
-
-          const startQuote = buffer.indexOf('"', colonIndex + 1);
-          if (startQuote === -1) break;
-
-          let endQuote = -1;
-          let scanIndex = startQuote + 1;
-          while (scanIndex < buffer.length) {
-            const nextQuote = buffer.indexOf('"', scanIndex);
-            if (nextQuote === -1) break;
-
-            let backslashCount = 0;
-            let bsIndex = nextQuote - 1;
-            while (bsIndex >= startQuote && buffer[bsIndex] === '\\') {
-              backslashCount++;
-              bsIndex--;
-            }
-
-            if (backslashCount % 2 === 0) {
-              endQuote = nextQuote;
-              break;
-            }
-            scanIndex = nextQuote + 1;
-          }
-
-          if (endQuote === -1) break;
-
-          let textSegment = buffer.slice(startQuote + 1, endQuote);
-          textSegment = textSegment
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .replace(/\\'/g, "'")
-            .replace(/\\\\/g, '\\')
-            .replace(/\\t/g, '\t');
-
-          newText += textSegment;
-          searchIndex = endQuote + 1;
-        }
-
-        if (newText !== accumulatedText) {
-          accumulatedText = newText;
-          onChunk(accumulatedText);
-        }
-      }
-    }
-
-    // Countdown helper — shows live retry timer in the chat bubble
-    async function countdownRetry(delayMs, attempt, totalAttempts) {
-      const endTime = Date.now() + delayMs;
-      while (Date.now() < endTime) {
-        if (cancelled) return;
-        const remaining = Math.ceil((endTime - Date.now()) / 1000);
-        const msg = `⏳ **Gemini API Rate Limit (429)** — Quota temporarily exceeded.\n\n` +
-          `Auto-retrying in **${remaining}s**... (Attempt ${attempt} of ${totalAttempts})\n\n` +
-          `> 💡 _Tip: Switch to a different Gemini API key in Settings, or wait for your quota to reset._`;
-        onChunk(msg);
-        await sleep(1000);
-      }
-    }
-
-    // Main fetch with exponential backoff retry on 429
-    async function fetchWithRetry() {
-      for (let attempt = 1; attempt <= RETRY_DELAYS_MS.length + 1; attempt++) {
-        if (cancelled) return;
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents, apiKey }),
-            signal: controller.signal
-          });
-
-          if (!response.ok) {
-            let errMsg = '';
-            try {
-              const errData = await response.json();
-              errMsg = errData.error || '';
-            } catch (e) {
-              try { errMsg = await response.text(); } catch (e2) {}
-            }
-
-            if (response.status === 429) {
-              // Show live countdown if more retries remain
-              const retryDelayMs = RETRY_DELAYS_MS[attempt - 1];
-              if (retryDelayMs !== undefined && !cancelled) {
-                accumulatedText = ''; // Reset so countdown renders fresh
-                await countdownRetry(retryDelayMs, attempt, RETRY_DELAYS_MS.length + 1);
-                continue; // Retry the loop
-              } else {
-                // All retries exhausted
-                throw new Error(
-                  `**Gemini API Quota Exhausted** — All ${RETRY_DELAYS_MS.length} retry attempts failed (HTTP 429).\n\n` +
-                  `Your API key has hit its rate limit or daily quota.\n\n` +
-                  `**Options:**\n` +
-                  `- ⏳ Wait a few minutes and try again\n` +
-                  `- 🔑 Add a different Gemini API key in **Settings**\n` +
-                  `- 🗑️ Clear your key to use **Sandbox mode** (no API needed)\n\n` +
-                  `> _Gemini free-tier limits: 15 RPM / 1,500 RPD. [Upgrade your plan](https://ai.google.dev/pricing) to increase quota._`
-                );
-              }
-            } else if (response.status === 403) {
-              throw new Error('Gemini API Key Invalid or Forbidden (HTTP 403). Your API key may be invalid or restricted. Please check your key configuration in Settings.');
-            } else {
-              const detailedMsg = errMsg ? `: ${errMsg}` : '';
-              throw new Error(`Gemini API connection error (HTTP ${response.status})${detailedMsg}. Make sure you copied ONLY the key value (starts with AIzaSy) and not the full URL or curl command.`);
-            }
-          }
-
-          // Success — stream the response
-          await readStream(response.body);
-          onComplete(accumulatedText);
-          return; // Done
-
-        } catch (err) {
-          if (err.name === 'AbortError' || cancelled) return;
-          console.error('[Aether aiEngine] Fetch error:', err);
-          const errMsg = `⚠️ **Gemini API Error**:\n\n${err.message}`;
-          onChunk(errMsg);
-          onComplete(errMsg);
-          return;
-        }
-      }
-    }
-
-    fetchWithRetry();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  } else {
-    // 2. FALLBACK SANDBOX MODE (Clean, conversational, natural)
-    const sandboxPrompt = generateSandboxResponse(prompt, fileAttachment);
-
-    const chunks = sandboxPrompt.split(" ");
-    let currentIdx = 0;
-    let accumulated = "";
-    const baseInterval = Math.max(10, Math.min(30, Math.floor(800 / chunks.length)));
-
-    const timer = setInterval(() => {
-      if (currentIdx >= chunks.length) {
-        clearInterval(timer);
-        onComplete(accumulated);
-        return;
-      }
-      accumulated += (currentIdx === 0 ? "" : " ") + chunks[currentIdx];
-      onChunk(accumulated);
-      currentIdx++;
-    }, baseInterval);
-
-    return () => clearInterval(timer);
-  }
+  return () => clearInterval(timer);
 }
 
 export { SUGGESTIONS, TRENDING_TOPICS };

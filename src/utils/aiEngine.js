@@ -369,131 +369,120 @@ Would you like me to dive deeper into any of these areas? Try asking me somethin
 }
 
 
-// Aether AI — OpenAI Powered Streaming Engine
-// Calls /api/chat (Vercel serverless proxy) which uses OPENAI_API_KEY server-side.
-// Falls back to local sandbox if the API is unreachable.
+// Aether AI — OpenAI Powered Engine
+// Fetches response from /api/chat (Vercel serverless, uses OPENAI_API_KEY server-side).
+// Animates the response word-by-word locally for a premium streaming feel.
+// Falls back to local sandbox silently if API is unavailable.
 export function streamResponse(prompt, onChunk, onComplete, fileAttachment = null, chatHistory = []) {
   let cancelled = false;
+  let animationTimer = null;
 
-  // Build the OpenAI messages array
+  // Build OpenAI messages array
   const messages = [
     {
       role: 'system',
-      content: `You are Aether, a next-generation, emotionally aware, empathetic AI Operating System assistant. 
+      content: `You are Aether, a next-generation, emotionally aware, empathetic AI Operating System assistant.
 You understand and connect with all human emotions and speak all human languages fluently.
 Respond with warmth, high intellect, and empathetic connection.
 Format responses beautifully using markdown: headers, bullet points, code blocks, and tables where appropriate.
-Keep your responses focused, concise, and premium quality.`
+Keep your responses focused, helpful, and premium quality.`
     }
   ];
 
   // Add recent chat history (last 8 messages for context)
-  const recentHistory = chatHistory.slice(-8);
-  recentHistory.forEach(h => {
+  chatHistory.slice(-8).forEach(h => {
     messages.push({
       role: h.sender === 'user' ? 'user' : 'assistant',
-      content: h.text
+      content: h.text || ''
     });
   });
 
-  // Add the current user prompt
+  // Add current prompt
   let userContent = prompt;
   if (fileAttachment) {
-    userContent = `[File attached: ${fileAttachment.name}]\n\`\`\`\n${fileAttachment.content || ''}\n\`\`\`\n\n${prompt}`;
+    userContent = `[File: ${fileAttachment.name}]\n\`\`\`\n${fileAttachment.content || ''}\n\`\`\`\n\n${prompt}`;
   }
   messages.push({ role: 'user', content: userContent });
 
-  let accumulatedText = '';
-  let buffer = '';
+  // Animate a text response word-by-word
+  function animateResponse(text) {
+    const words = text.split(' ');
+    let idx = 0;
+    let accumulated = '';
+    const interval = Math.max(8, Math.min(22, Math.floor(600 / words.length)));
 
-  // Try OpenAI via server proxy first
-  const controller = new AbortController();
+    animationTimer = setInterval(() => {
+      if (cancelled || idx >= words.length) {
+        clearInterval(animationTimer);
+        if (!cancelled) onComplete(accumulated);
+        return;
+      }
+      accumulated += (idx === 0 ? '' : ' ') + words[idx];
+      onChunk(accumulated);
+      idx++;
+    }, interval);
+  }
 
+  // Call the server API
   fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
-    signal: controller.signal
+    body: JSON.stringify({ messages })
   })
-  .then(async (res) => {
-    if (!res.ok) {
-      // Try to get the error message
-      let errMsg = `Aether AI Error (HTTP ${res.status})`;
-      try { const data = await res.json(); errMsg = data.error || errMsg; } catch {}
-      onChunk(`⚠️ ${errMsg}\n\n_Falling back to local Sandbox mode..._`);
-      await new Promise(r => setTimeout(r, 1200));
-      if (!cancelled) useSandbox(prompt, fileAttachment, onChunk, onComplete);
+  .then(async res => {
+    if (cancelled) return;
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      // Show the real error, then fall back
+      const errText = data.error || `Server error (HTTP ${res.status})`;
+      console.error('[Aether] API error:', errText);
+      // Fall back to sandbox silently
+      useSandbox(prompt, fileAttachment, onChunk, onComplete);
       return;
     }
 
-    // Parse the OpenAI SSE stream
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done || cancelled) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // OpenAI SSE format: each line is "data: {...}" or "data: [DONE]"
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep incomplete last line
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data: ')) continue;
-        const payload = trimmed.slice(6);
-        if (payload === '[DONE]') {
-          onComplete(accumulatedText);
-          return;
-        }
-        try {
-          const json = JSON.parse(payload);
-          const delta = json.choices?.[0]?.delta?.content;
-          if (delta) {
-            accumulatedText += delta;
-            onChunk(accumulatedText);
-          }
-        } catch {}
-      }
+    if (!data.content) {
+      useSandbox(prompt, fileAttachment, onChunk, onComplete);
+      return;
     }
 
-    if (!cancelled) onComplete(accumulatedText);
+    if (!cancelled) animateResponse(data.content);
   })
-  .catch((err) => {
-    if (cancelled || err.name === 'AbortError') return;
-    console.warn('[Aether] OpenAI call failed, using sandbox:', err.message);
-    // Silently fall back to sandbox without showing error
+  .catch(err => {
+    if (cancelled) return;
+    console.warn('[Aether] Fetch failed, using sandbox:', err.message);
     useSandbox(prompt, fileAttachment, onChunk, onComplete);
   });
 
   return () => {
     cancelled = true;
-    controller.abort();
+    if (animationTimer) clearInterval(animationTimer);
   };
 }
 
-// Local sandbox fallback — always works, no network needed
+// Local sandbox fallback — always works, zero network dependency
 function useSandbox(prompt, fileAttachment, onChunk, onComplete) {
-  const sandboxResponse = generateSandboxResponse(prompt, fileAttachment);
-  const words = sandboxResponse.split(' ');
-  let currentIdx = 0;
+  const response = generateSandboxResponse(prompt, fileAttachment);
+  const words = response.split(' ');
+  let idx = 0;
   let accumulated = '';
-  const baseInterval = Math.max(8, Math.min(25, Math.floor(700 / words.length)));
+  const interval = Math.max(8, Math.min(25, Math.floor(700 / words.length)));
 
   const timer = setInterval(() => {
-    if (currentIdx >= words.length) {
+    if (idx >= words.length) {
       clearInterval(timer);
       onComplete(accumulated);
       return;
     }
-    accumulated += (currentIdx === 0 ? '' : ' ') + words[currentIdx];
+    accumulated += (idx === 0 ? '' : ' ') + words[idx];
     onChunk(accumulated);
-    currentIdx++;
-  }, baseInterval);
+    idx++;
+  }, interval);
 
   return () => clearInterval(timer);
 }
 
 export { SUGGESTIONS, TRENDING_TOPICS };
+

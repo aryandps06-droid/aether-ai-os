@@ -1,8 +1,15 @@
 // api/chat.js — Vercel Serverless Function
-// Proxies requests to OpenAI Chat Completions API using server-side API key.
-// Set OPENAI_API_KEY in Vercel Environment Variables (never exposed to browser).
+// Calls OpenAI API server-side using OPENAI_API_KEY env var.
+// Returns the full response as JSON (no streaming) — maximally reliable.
 
 export default async function handler(req, res) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -13,14 +20,17 @@ export default async function handler(req, res) {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
+      console.error('[Aether] OPENAI_API_KEY is not set in environment variables');
       return res.status(500).json({
-        error: 'OpenAI API key not configured on server. Please add OPENAI_API_KEY to Vercel environment variables.'
+        error: 'OPENAI_API_KEY not configured on server.'
       });
     }
 
-    if (!messages || !Array.isArray(messages)) {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'Invalid messages payload.' });
     }
+
+    console.log('[Aether] Calling OpenAI with', messages.length, 'messages');
 
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -29,53 +39,45 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // Cost-efficient, fast, smart
+        model: 'gpt-4o-mini',
         messages,
-        stream: true,
+        stream: false,        // Simple non-streaming — most reliable
         max_tokens: 1024,
-        temperature: 0.7
+        temperature: 0.75
       })
     });
 
-    if (!openaiRes.ok) {
-      const errText = await openaiRes.text();
-      console.error('[Aether Chat] OpenAI error:', openaiRes.status, errText);
+    const responseText = await openaiRes.text();
+    console.log('[Aether] OpenAI status:', openaiRes.status);
 
-      let friendlyError = `OpenAI API error (HTTP ${openaiRes.status}).`;
-      if (openaiRes.status === 401) friendlyError = 'OpenAI API key is invalid or expired. Please check OPENAI_API_KEY in Vercel settings.';
+    if (!openaiRes.ok) {
+      console.error('[Aether] OpenAI error:', openaiRes.status, responseText.slice(0, 300));
+      let friendlyError = `OpenAI API error (HTTP ${openaiRes.status})`;
+      try {
+        const errData = JSON.parse(responseText);
+        friendlyError = errData.error?.message || friendlyError;
+      } catch {}
+
+      if (openaiRes.status === 401) friendlyError = 'Invalid OpenAI API key. Please check OPENAI_API_KEY in Vercel settings.';
       if (openaiRes.status === 429) friendlyError = 'OpenAI rate limit reached. Please wait a moment and try again.';
-      if (openaiRes.status === 500) friendlyError = 'OpenAI server error. Please try again in a few seconds.';
+      if (openaiRes.status === 503) friendlyError = 'OpenAI servers are busy. Please try again in a few seconds.';
 
       return res.status(openaiRes.status).json({ error: friendlyError });
     }
 
-    // Stream the OpenAI response back to the client
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
+    const data = JSON.parse(responseText);
+    const content = data.choices?.[0]?.message?.content;
 
-    if (openaiRes.body) {
-      const reader = openaiRes.body.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
-        }
-      } finally {
-        reader.releaseLock();
-      }
+    if (!content) {
+      console.error('[Aether] No content in OpenAI response:', responseText.slice(0, 300));
+      return res.status(500).json({ error: 'Empty response from OpenAI.' });
     }
 
-    res.end();
+    console.log('[Aether] OpenAI response OK, length:', content.length);
+    return res.status(200).json({ content });
 
   } catch (err) {
-    console.error('[Aether Chat] Unexpected error:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.end();
-    }
+    console.error('[Aether Chat] Unexpected error:', err.message);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }

@@ -83,55 +83,55 @@ export default defineConfig({
             req.on('data', chunk => { body += chunk; });
             req.on('end', async () => {
               try {
-                const { contents, apiKey } = JSON.parse(body);
+                const { messages } = JSON.parse(body);
+                const apiKey = process.env.GROQ_API_KEY;
 
                 if (!apiKey) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'GROQ_API_KEY not configured in .env file.' }));
+                  return;
+                }
+
+                if (!messages || !Array.isArray(messages) || messages.length === 0) {
                   res.writeHead(400, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ error: 'API key is required.' }));
+                  res.end(JSON.stringify({ error: 'Invalid messages payload.' }));
                   return;
                 }
 
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:streamGenerateContent?key=${apiKey}`;
-                
-                const response = await fetch(url, {
+                const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ contents })
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                  },
+                  body: JSON.stringify({
+                    model: 'llama-3.1-8b-instant',
+                    messages,
+                    stream: false,
+                    max_tokens: 1024,
+                    temperature: 0.75
+                  })
                 });
 
-                if (!response.ok) {
-                  res.writeHead(response.status, { 'Content-Type': 'application/json' });
-                  res.end(await response.text());
+                const responseText = await groqRes.text();
+
+                if (!groqRes.ok) {
+                  res.writeHead(groqRes.status, { 'Content-Type': 'application/json' });
+                  res.end(responseText);
                   return;
                 }
 
-                res.writeHead(200, {
-                  'Content-Type': 'text/event-stream',
-                  'Cache-Control': 'no-cache',
-                  'Connection': 'keep-alive'
-                });
+                const data = JSON.parse(responseText);
+                const content = data.choices?.[0]?.message?.content;
 
-                if (response.body) {
-                  if (typeof response.body.getReader === 'function') {
-                    const reader = response.body.getReader();
-                    while (true) {
-                      const { done, value } = await reader.read();
-                      if (done) break;
-                      res.write(value);
-                    }
-                  } else if (typeof response.body[Symbol.asyncIterator] === 'function') {
-                    for await (const chunk of response.body) {
-                      res.write(chunk);
-                    }
-                  } else if (typeof response.body.on === 'function') {
-                    response.body.on('data', (chunk) => {
-                      res.write(chunk);
-                    });
-                    await new Promise((resolve) => response.body.on('end', resolve));
-                  }
+                if (!content) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Empty response from Groq.' }));
+                  return;
                 }
 
-                res.end();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ content }));
               } catch (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: err.message }));

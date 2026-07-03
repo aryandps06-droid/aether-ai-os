@@ -252,7 +252,7 @@ function App() {
           const limitMsg = {
             id: 'msg-limit-' + Date.now(),
             sender: 'assistant',
-            text: `⚠️ **Session Message Limit Reached** (${MAX_MESSAGES_PER_CHAT} messages per thread).\n\nTo protect your API quota and keep responses fast, each chat thread is limited to **${MAX_MESSAGES_PER_CHAT} exchanges**.\n\n👉 Click **Initialize Chat Node** in the sidebar to start a fresh thread and continue chatting!`,
+            text: `⚠️ **Neural Capacity Reached** (${MAX_MESSAGES_PER_CHAT} messages per thread).\n\nEven an advanced AI OS needs to clear its short-term cache. To keep our quantum channels lightning fast, each thread is limited to **${MAX_MESSAGES_PER_CHAT} exchanges**.\n\n👉 Click **Initialize Chat Node** in the sidebar to start a fresh neural thread and continue our conversation!`,
             isStreaming: false,
             timestamp: new Date().toISOString()
           };

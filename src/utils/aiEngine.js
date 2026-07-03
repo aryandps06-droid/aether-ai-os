@@ -41,6 +41,13 @@ const TRENDING_TOPICS = [
   "React 20 Server Components"
 ];
 
+const FUNNY_RATE_LIMIT_MESSAGES = [
+  `🐢 **Whoa there, Speed Racer!** \n\nYou're chatting faster than my servers can drink coffee. We've hit the API rate limit (30 requests/min).\n\nTake a deep breath, stretch your fingers for 10 seconds, and try again! ☕🧘‍♂️`,
+  `🚦 **Hold your horses!** \n\nMy neural pathways need a tiny breather. We just hit the speed limit.\n\nGive me about 10 seconds to catch my breath and we'll get right back to it! 😮‍💨`,
+  `🔥 **Keyboard on fire?!** \n\nYou're typing so fast the servers are starting to sweat! We're temporarily rate-limited.\n\nGrab a sip of water, wait 10 seconds, and hit send again. 🚰`,
+  `🛑 **Whoops, too fast!** \n\nEven an advanced AI OS needs a micro-break. We hit the 30-message-per-minute cap. \n\nLet's take a quick 10-second timeout before continuing our quantum leaps! ⏱️`
+];
+
 // Helper to capitalize first letter
 const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -442,7 +449,8 @@ Keep your responses focused, helpful, and premium quality.`
     }
 
     if (res.status === 429 || (data.error && data.error.includes('rate limit'))) {
-      onChunk(`⏳ **Rate limit hit** — Please wait 10 seconds and try again.\n\n_Groq free tier: 30 requests/minute._`);
+      const randomMsg = FUNNY_RATE_LIMIT_MESSAGES[Math.floor(Math.random() * FUNNY_RATE_LIMIT_MESSAGES.length)];
+      onChunk(randomMsg);
       onComplete(`Rate limit`);
       return;
     }

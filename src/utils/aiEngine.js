@@ -432,19 +432,25 @@ Keep your responses focused, helpful, and premium quality.`
   .then(async res => {
     if (cancelled) return;
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      onChunk(`⚠️ **Server Response Error**: Could not parse server response.\n\nThis usually means the Vercel function crashed. Check Vercel → Logs for details.`);
+      onComplete(`⚠️ Server parse error`);
+      return;
+    }
 
     if (!res.ok || data.error) {
-      // Show the real error, then fall back
-      const errText = data.error || `Server error (HTTP ${res.status})`;
-      console.error('[Aether] API error:', errText);
-      // Fall back to sandbox silently
-      useSandbox(prompt, fileAttachment, onChunk, onComplete);
+      const errText = data.error || `HTTP ${res.status}`;
+      onChunk(`⚠️ **Aether API Error**: ${errText}\n\n_If this says "OPENAI_API_KEY not configured" — go to Vercel → Settings → Environment Variables and add OPENAI_API_KEY, then redeploy._`);
+      onComplete(`⚠️ ${errText}`);
       return;
     }
 
     if (!data.content) {
-      useSandbox(prompt, fileAttachment, onChunk, onComplete);
+      onChunk(`⚠️ **Empty Response**: OpenAI returned an empty response. Please try again.`);
+      onComplete(`⚠️ Empty response`);
       return;
     }
 
@@ -452,8 +458,8 @@ Keep your responses focused, helpful, and premium quality.`
   })
   .catch(err => {
     if (cancelled) return;
-    console.warn('[Aether] Fetch failed, using sandbox:', err.message);
-    useSandbox(prompt, fileAttachment, onChunk, onComplete);
+    onChunk(`⚠️ **Network Error**: Could not reach /api/chat.\n\nError: ${err.message}\n\n_Make sure the Vercel deployment completed and the function is deployed._`);
+    onComplete(`⚠️ Network error: ${err.message}`);
   });
 
   return () => {

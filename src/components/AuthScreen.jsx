@@ -41,7 +41,7 @@ export const AuthScreen = ({ onAuthSuccess }) => {
       x: rotateX,
       y: rotateY,
       scale: 1.025,
-      transition: 'none'
+      transition: 'transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
     });
   };
 
@@ -255,8 +255,8 @@ export const AuthScreen = ({ onAuthSuccess }) => {
       }}
     >
       {/* Background glowing blobs */}
-      <div style={{ position: 'absolute', top: '22%', left: '20%', width: '380px', height: '380px', background: 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)', filter: 'blur(50px)', zIndex: 1 }} />
-      <div style={{ position: 'absolute', bottom: '20%', right: '15%', width: '420px', height: '420px', background: 'radial-gradient(circle, rgba(0,210,255,0.08) 0%, transparent 75%)', filter: 'blur(60px)', zIndex: 1 }} />
+      <div style={{ position: 'absolute', top: '22%', left: '20%', width: '380px', height: '380px', background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)', filter: 'blur(50px)', zIndex: 1 }} />
+      <div style={{ position: 'absolute', bottom: '20%', right: '15%', width: '420px', height: '420px', background: 'radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 75%)', filter: 'blur(60px)', zIndex: 1 }} />
       
       {/* 3D Flippable cyber deck console card */}
       <div 
@@ -737,21 +737,22 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
     resize();
     window.addEventListener('resize', resize);
 
-    const pCount = particleConfig.count;
-    const speedMultiplier = particleConfig.speedMult;
+    const pCount = particleConfig.count + 80;
+    const speedMultiplier = particleConfig.speedMult * 1.5;
     for (let i = 0; i < pCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = (1 + Math.random() * 4.5) * speedMultiplier;
+      const speed = (1 + Math.random() * 5.5) * speedMultiplier;
       const hue = Math.random() > 0.5 ? particleConfig.baseHue : particleConfig.splitHue;
       particles.push({
         x: canvas.width / 2,
         y: canvas.height / 2,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        size: 1.5 + Math.random() * 3.5,
-        color: `hsla(${hue}, 95%, 60%, 1)`,
+        size: 1.5 + Math.random() * 4.5,
+        color: `hsla(${hue}, 95%, 65%, 1)`,
         alpha: 1,
-        decay: 0.008 + Math.random() * 0.012
+        decay: 0.005 + Math.random() * 0.015,
+        wobble: Math.random() * 0.1
       });
     }
 
@@ -760,10 +761,13 @@ const SuccessGrantedOverlay = ({ user, onComplete }) => {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach((p) => {
-        p.x += p.vx;
+        p.x += p.vx + Math.sin(p.alpha * 10) * p.wobble;
         p.y += p.vy;
-        p.vy += 0.008;
+        p.vy += 0.015;
+        p.vx *= 0.98;
+        p.vy *= 0.98;
         p.alpha -= p.decay;
+        p.size = Math.max(0, p.size - 0.02);
 
         if (p.alpha <= 0) {
           const angle = Math.random() * Math.PI * 2;

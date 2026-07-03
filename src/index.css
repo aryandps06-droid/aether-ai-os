@@ -1,26 +1,26 @@
 /* Core styling stylesheet for Aether AI OS */
 
 :root {
-  /* Color Tokens - Aurora Cosmic Dawn Palette */
-  --bg-primary: #02020a;
-  --bg-secondary: #04091a;
-  --bg-panel: rgba(4, 12, 32, 0.5);
-  --bg-panel-solid: rgba(5, 14, 38, 0.96);
-  --bg-card: rgba(8, 28, 62, 0.3);
-  --bg-card-hover: rgba(12, 38, 80, 0.55);
+  /* Color Tokens - Next-Gen Obsidian Apple Aesthetic */
+  --bg-primary: #000000; /* Pure OLED Black */
+  --bg-secondary: #050505;
+  --bg-panel: rgba(10, 10, 12, 0.45);
+  --bg-panel-solid: rgba(12, 12, 14, 0.85);
+  --bg-card: rgba(20, 20, 22, 0.4);
+  --bg-card-hover: rgba(30, 30, 35, 0.6);
   
-  --color-violet: #10b981; /* Shifted to Aurora Emerald Green */
-  --color-violet-glow: rgba(16, 185, 129, 0.35);
-  --color-cyan: #00d2ff; /* Shifted to Electric Celestial Cyan */
-  --color-cyan-glow: rgba(0, 210, 255, 0.35);
-  --color-pink: #8b5cf6; /* Cosmic Purple */
-  --color-pink-glow: rgba(139, 92, 246, 0.3);
+  --color-violet: #10b981; 
+  --color-violet-glow: rgba(16, 185, 129, 0.25);
+  --color-cyan: #00d2ff; 
+  --color-cyan-glow: rgba(0, 210, 255, 0.25);
+  --color-pink: #a855f7; 
+  --color-pink-glow: rgba(168, 85, 247, 0.25);
   
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border-neon: rgba(16, 185, 129, 0.2);
-  --border-neon-active: rgba(0, 210, 255, 0.65);
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --border-neon: rgba(255, 255, 255, 0.08);
+  --border-neon-active: rgba(255, 255, 255, 0.2);
 
   /* Fonts */
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -134,20 +134,20 @@ body {
   100% { transform: scale(1.6); opacity: 0; border-color: var(--color-violet); }
 }
 
-/* Glassmorphic Panel Base */
+/* Ultra-Premium Glassmorphic Panel Base */
 .glass-panel {
   background: var(--bg-panel);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
   border: 1px solid var(--border-neon);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-  border-radius: var(--radius-md);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
   transition: var(--transition-normal);
 }
 
 .glass-panel:hover {
-  border-color: rgba(139, 92, 246, 0.35);
-  box-shadow: 0 12px 40px 0 rgba(139, 92, 246, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 32px 64px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 /* Custom Scanline Overlay */
@@ -172,32 +172,33 @@ body {
   opacity: 0.15;
 }
 
-/* Premium Inputs */
+/* Premium Apple-Style Inputs */
 .cyber-input {
-  background: rgba(8, 4, 32, 0.6);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
-  padding: 14px 18px;
+  padding: 16px 20px;
   border-radius: var(--radius-md);
   outline: none;
   font-family: var(--font-sans);
   font-size: 0.95rem;
-  transition: var(--transition-fast);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .cyber-input:focus {
   border-color: var(--color-cyan);
-  box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
-  background: rgba(8, 4, 32, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(0, 210, 255, 0.15);
 }
 
-/* Premium Buttons */
+/* Premium Next-Gen Buttons */
 .cyber-btn {
-  background: linear-gradient(135deg, var(--color-violet) 0%, #6366f1 100%);
-  border: none;
-  color: #ffffff;
+  background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(200,200,200,0.8) 100%);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #000000;
   padding: 14px 28px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   font-family: var(--font-sans);
   font-weight: 600;
   font-size: 0.95rem;
@@ -208,44 +209,26 @@ body {
   gap: 8px;
   position: relative;
   overflow: hidden;
-  transition: var(--transition-fast);
-}
-
-.cyber-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.25),
-    transparent
-  );
-  transition: 0.5s;
-}
-
-.cyber-btn:hover::before {
-  left: 100%;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
 }
 
 .cyber-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 25px rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
 }
 
 .cyber-btn:active {
-  transform: translateY(0);
+  transform: translateY(1px) scale(0.98);
 }
 
 .cyber-btn-secondary {
-  background: rgba(20, 12, 56, 0.4);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
   padding: 14px 28px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   font-family: var(--font-sans);
   font-weight: 500;
   font-size: 0.95rem;
@@ -254,13 +237,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: var(--transition-fast);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .cyber-btn-secondary:hover {
-  background: rgba(139, 92, 246, 0.15);
-  border-color: var(--color-cyan);
-  box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
 }
 
@@ -287,27 +269,35 @@ body {
   box-shadow: 0 10px 25px rgba(6, 182, 212, 0.08);
 }
 
-/* Chat Bubbles */
+/* Premium Apple-Style Chat Bubbles */
 .chat-bubble-user {
   align-self: flex-end;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18) 0%, rgba(99, 102, 241, 0.08) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  border-radius: var(--radius-md) var(--radius-md) 0 var(--radius-md);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px 20px 4px 20px;
   padding: 16px 20px;
   max-width: 75%;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  animation: fadeInUp 0.4s var(--transition-normal);
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .chat-bubble-assistant {
   align-self: flex-start;
-  background: rgba(15, 10, 45, 0.5);
-  border: 1px solid rgba(6, 182, 212, 0.2);
-  border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 0;
+  background: rgba(15, 15, 18, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px 20px 20px 4px;
   padding: 18px 22px;
   max-width: 82%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  animation: fadeInUp 0.5s var(--transition-normal);
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 /* Code Highlighting Block */

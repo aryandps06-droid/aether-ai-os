@@ -419,23 +419,25 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
         {chat?.messages.length === 0 && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.85, padding: '40px 20px', textAlign: 'center', minHeight: '300px' }}>
             <div style={{
-              width: '70px',
-              height: '70px',
+              width: '80px',
+              height: '80px',
               borderRadius: 'var(--radius-full)',
-              background: 'linear-gradient(135deg, var(--color-violet) 0%, var(--color-cyan) 100%)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 800,
-              fontSize: '1.8rem',
+              fontSize: '2rem',
               color: '#fff',
-              marginBottom: '20px',
-              boxShadow: '0 0 20px var(--color-violet-glow)',
-              animation: 'spinSlow 20s linear infinite'
+              marginBottom: '24px',
+              boxShadow: '0 0 40px rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05)',
+              animation: 'pulseMic 4s infinite alternate ease-in-out'
             }}>Æ</div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px', letterSpacing: '-0.01em', color: '#fff' }}>Aether AI Workspace Node</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '380px', lineHeight: 1.5 }}>
-              Type your first query in the terminal input below to initialize compile sequences.
+            <h3 style={{ fontSize: '1.4rem', fontWeight: 600, marginBottom: '8px', letterSpacing: '-0.02em', color: '#fff' }}>Aether AI OS</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '380px', lineHeight: 1.5 }}>
+              How can I assist you today? Initialize compile sequences below.
             </p>
           </div>
         )}
@@ -476,27 +478,12 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
 
               {/* Chat Bubble Box */}
               <div 
+                className={isUser ? "chat-bubble-user" : "chat-bubble-assistant"}
                 style={{
                   position: 'relative',
-                  maxWidth: isUser ? '75%' : '82%',
                   display: 'flex',
                   flexDirection: 'column',
-                  padding: isUser ? '16px 22px' : '18px 24px',
-                  borderRadius: isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                  background: isUser ? 'rgba(2, 2, 8, 0.85)' : 'rgba(1, 4, 16, 0.9)',
-                  border: isUser ? '1px solid rgba(0, 210, 255, 0.45)' : '1px solid rgba(16, 185, 129, 0.35)',
-                  boxShadow: isUser ? '0 8px 30px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 210, 255, 0.12)' : '0 8px 30px rgba(0, 0, 0, 0.95), 0 0 15px rgba(16, 185, 129, 0.1)',
-                  color: isUser ? '#ffffff' : '#f1f5f9',
-                  transition: 'transform 0.2s ease, border-color 0.2s ease',
-                  alignSelf: isUser ? 'flex-end' : 'flex-start'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.borderColor = isUser ? 'var(--color-cyan)' : 'var(--color-emerald)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'none';
-                  e.currentTarget.style.borderColor = isUser ? 'rgba(0, 210, 255, 0.45)' : 'rgba(16, 185, 129, 0.35)';
+                  color: isUser ? '#ffffff' : '#f1f5f9'
                 }}
               >
                 {/* File Attachment Pill in bubble - security data chip */}
@@ -658,25 +645,29 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
       {/* Input panel Form */}
       <div 
         style={{
-          padding: '20px 24px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-          background: 'rgba(2, 2, 8, 0.92)',
-          backdropFilter: 'blur(20px)',
-          zIndex: 80
+          padding: '0 24px 24px 24px',
+          background: 'transparent',
+          zIndex: 80,
+          display: 'flex',
+          justifyContent: 'center'
         }}
       >
         <form 
           onSubmit={handleSend}
-          className="glass-panel glow-ring"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            padding: '8px 16px',
-            borderRadius: 'var(--radius-lg)',
-            borderWidth: '1px',
-            borderColor: 'rgba(255, 255, 255, 0.05)',
-            background: 'rgba(5, 5, 10, 0.88)'
+            padding: '10px 16px',
+            borderRadius: 'var(--radius-full)',
+            background: 'rgba(25, 25, 28, 0.65)',
+            backdropFilter: 'blur(32px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            width: '100%',
+            maxWidth: '800px',
+            transition: 'all 0.3s ease'
           }}
         >
           {/* File input attachment click */}
@@ -784,7 +775,7 @@ export const ChatView = ({ chat, onSendMessage, onUpdateMessage, onRegenerateMes
             }}
             disabled={isStreaming || (!input.trim() && !fileAttachment)}
           >
-            <Send size={16} />
+            <Send size={16} color="#000" />
           </button>
         </form>
       </div>

@@ -57,11 +57,11 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
       ctx.stroke();
 
       // Golden ratio distributed 3D spherical nodes
-      const nodeCount = 18;
+      const nodeCount = 28;
       const nodes = [];
       for (let i = 0; i < nodeCount; i++) {
         const theta = (i / nodeCount) * Math.PI * 2 + angle;
-        const phi = (i % 3) * (Math.PI / 3) + angle * 0.4;
+        const phi = Math.acos(1 - 2 * (i + 0.5) / nodeCount) + angle * 0.4;
         
         // Project 3D coordinate space
         const sx = radius * Math.sin(phi) * Math.cos(theta);
@@ -72,21 +72,23 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
         const px = cx + sx;
         const py = cy + sy;
         
-        const size = scale * 2 + 1;
-        const opacity = scale * 0.6 + 0.25;
+        const size = scale * 2.5 + 0.5;
+        const opacity = scale * 0.7 + 0.2;
+        // Apple-style next gen colors
+        const color = i % 3 === 0 ? '0, 210, 255' : (i % 3 === 1 ? '168, 85, 247' : '16, 185, 129');
         
-        nodes.push({ x: px, y: py, size, opacity });
+        nodes.push({ x: px, y: py, size, opacity, color });
       }
 
       // Draw synapse linkages
-      ctx.strokeStyle = 'rgba(0, 210, 255, 0.14)';
-      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 0.5;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 34) {
+          if (dist < 38) {
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
@@ -99,9 +101,9 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
       nodes.forEach(n => {
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(16, 185, 129, ${n.opacity})`;
-        ctx.shadowBlur = 4;
-        ctx.shadowColor = 'rgba(16, 185, 129, 0.4)';
+        ctx.fillStyle = `rgba(${n.color}, ${n.opacity})`;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = `rgba(${n.color}, 0.5)`;
         ctx.fill();
       });
 
@@ -214,10 +216,11 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
                       width: '100%',
                       padding: '2px 4px 2px 10px',
                       borderRadius: 'var(--radius-md)',
-                      background: isActive ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                      background: isActive ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                       border: '1px solid',
-                      borderColor: isActive ? 'rgba(16, 185, 129, 0.22)' : 'transparent',
-                      transition: 'all 0.2s ease',
+                      borderColor: isActive ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                      boxShadow: isActive ? 'inset 0 1px 0 rgba(255, 255, 255, 0.1)' : 'none',
+                      transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                       position: 'relative'
                     }}
                   >
@@ -430,11 +433,13 @@ export const AppShell = ({ children, user, onLogout, onUpdateUser, chats, active
 
       {/* Settings Modal */}
       {showSettings && (
-        <ProfileSettings 
-          user={user}
-          onClose={() => setShowSettings(false)}
-          onUpdateUser={onUpdateUser}
-        />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ProfileSettings 
+            user={user}
+            onClose={() => setShowSettings(false)}
+            onUpdateUser={onUpdateUser}
+          />
+        </div>
       )}
     </div>
   );

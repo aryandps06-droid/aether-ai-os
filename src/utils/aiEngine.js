@@ -442,43 +442,14 @@ Keep your responses focused, helpful, and premium quality.`
     }
 
     if (res.status === 429 || (data.error && data.error.includes('rate limit'))) {
-      // Show countdown while server-side retry is happening (20s)
-      let secs = 20;
-      const countdown = setInterval(() => {
-        if (cancelled || secs <= 0) { clearInterval(countdown); return; }
-        onChunk(`⏳ **OpenAI Rate Limit** — Retrying in **${secs}s**...\n\n_Free tier allows 3 requests/minute. Waiting for cooldown._`);
-        secs--;
-      }, 1000);
-
-      // After 22s the server retry result should be in — re-fetch
-      await new Promise(r => setTimeout(r, 22000));
-      clearInterval(countdown);
-
-      if (cancelled) return;
-
-      // Retry the fetch after cooldown
-      try {
-        const retryRes = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages })
-        });
-        const retryData = await retryRes.json();
-        if (retryData.content && !cancelled) {
-          animateResponse(retryData.content);
-        } else {
-          // Still failing — use sandbox
-          useSandbox(prompt, fileAttachment, onChunk, onComplete);
-        }
-      } catch {
-        useSandbox(prompt, fileAttachment, onChunk, onComplete);
-      }
+      onChunk(`⏳ **Rate limit hit** — Please wait 10 seconds and try again.\n\n_Groq free tier: 30 requests/minute._`);
+      onComplete(`Rate limit`);
       return;
     }
 
     if (!res.ok || data.error) {
       const errText = data.error || `HTTP ${res.status}`;
-      onChunk(`⚠️ **Aether API Error**: ${errText}\n\n_If this says "OPENAI_API_KEY not configured" — go to Vercel → Settings → Environment Variables and add OPENAI_API_KEY, then redeploy._`);
+      onChunk(`⚠️ **Aether API Error**: ${errText}\n\n_Go to Vercel → Settings → Environment Variables and make sure GROQ_API_KEY is set. Get a free key at console.groq.com_`);
       onComplete(`⚠️ ${errText}`);
       return;
     }

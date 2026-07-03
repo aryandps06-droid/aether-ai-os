@@ -32,20 +32,32 @@ export default async function handler(req, res) {
 
     console.log('[Aether] Calling OpenAI with', messages.length, 'messages');
 
-    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages,
-        stream: false,        // Simple non-streaming — most reliable
-        max_tokens: 1024,
-        temperature: 0.75
-      })
-    });
+    // Helper to call OpenAI once
+    async function callOpenAI() {
+      return fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages,
+          stream: false,
+          max_tokens: 1024,
+          temperature: 0.75
+        })
+      });
+    }
+
+    let openaiRes = await callOpenAI();
+
+    // If rate limited, wait 20s and retry once
+    if (openaiRes.status === 429) {
+      console.log('[Aether] 429 rate limit — waiting 20s before retry...');
+      await new Promise(r => setTimeout(r, 20000));
+      openaiRes = await callOpenAI();
+    }
 
     const responseText = await openaiRes.text();
     console.log('[Aether] OpenAI status:', openaiRes.status);

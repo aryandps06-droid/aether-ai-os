@@ -436,8 +436,43 @@ Keep your responses focused, helpful, and premium quality.`
     try {
       data = await res.json();
     } catch (parseErr) {
-      onChunk(`⚠️ **Server Response Error**: Could not parse server response.\n\nThis usually means the Vercel function crashed. Check Vercel → Logs for details.`);
+      onChunk(`⚠️ **Server Response Error**: Could not parse server response.\n\nCheck Vercel → Logs for details.`);
       onComplete(`⚠️ Server parse error`);
+      return;
+    }
+
+    if (res.status === 429 || (data.error && data.error.includes('rate limit'))) {
+      // Show countdown while server-side retry is happening (20s)
+      let secs = 20;
+      const countdown = setInterval(() => {
+        if (cancelled || secs <= 0) { clearInterval(countdown); return; }
+        onChunk(`⏳ **OpenAI Rate Limit** — Retrying in **${secs}s**...\n\n_Free tier allows 3 requests/minute. Waiting for cooldown._`);
+        secs--;
+      }, 1000);
+
+      // After 22s the server retry result should be in — re-fetch
+      await new Promise(r => setTimeout(r, 22000));
+      clearInterval(countdown);
+
+      if (cancelled) return;
+
+      // Retry the fetch after cooldown
+      try {
+        const retryRes = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages })
+        });
+        const retryData = await retryRes.json();
+        if (retryData.content && !cancelled) {
+          animateResponse(retryData.content);
+        } else {
+          // Still failing — use sandbox
+          useSandbox(prompt, fileAttachment, onChunk, onComplete);
+        }
+      } catch {
+        useSandbox(prompt, fileAttachment, onChunk, onComplete);
+      }
       return;
     }
 
@@ -458,7 +493,7 @@ Keep your responses focused, helpful, and premium quality.`
   })
   .catch(err => {
     if (cancelled) return;
-    onChunk(`⚠️ **Network Error**: Could not reach /api/chat.\n\nError: ${err.message}\n\n_Make sure the Vercel deployment completed and the function is deployed._`);
+    onChunk(`⚠️ **Network Error**: Could not reach /api/chat.\n\nError: ${err.message}`);
     onComplete(`⚠️ Network error: ${err.message}`);
   });
 

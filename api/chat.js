@@ -1,5 +1,6 @@
 // api/chat.js — Vercel Serverless Function
-// Proxies Gemini API streaming requests. Accepts apiKey from client body (user-provided key).
+// Proxies requests to OpenAI Chat Completions API using server-side API key.
+// Set OPENAI_API_KEY in Vercel Environment Variables (never exposed to browser).
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -7,55 +8,55 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { contents, apiKey } = req.body;
+    const { messages } = req.body;
+
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-      return res.status(400).json({
-        error: 'API key is required. Please add your Gemini API key in Settings.'
+      return res.status(500).json({
+        error: 'OpenAI API key not configured on server. Please add OPENAI_API_KEY to Vercel environment variables.'
       });
     }
 
-    // Sanitize apiKey — extract raw key if user pasted full URL or curl command
-    let cleanKey = apiKey.trim();
-    if (cleanKey.includes('key=')) {
-      const match = cleanKey.match(/key=([^&\s"']+)/);
-      if (match) cleanKey = match[1];
-    }
-    cleanKey = cleanKey.replace(/['"]/g, '').replace(/\s+/g, '');
-
-    if (!contents || !Array.isArray(contents)) {
-      return res.status(400).json({ error: 'Invalid contents payload.' });
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Invalid messages payload.' });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${cleanKey}`;
-
-    const geminiRes = await fetch(geminiUrl, {
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', // Cost-efficient, fast, smart
+        messages,
+        stream: true,
+        max_tokens: 1024,
+        temperature: 0.7
+      })
     });
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error('[Aether Chat] Gemini error:', geminiRes.status, errText);
+    if (!openaiRes.ok) {
+      const errText = await openaiRes.text();
+      console.error('[Aether Chat] OpenAI error:', openaiRes.status, errText);
 
-      let friendlyError = `Gemini API connection error (HTTP ${geminiRes.status}).`;
-      if (geminiRes.status === 400) friendlyError += ' Make sure you copied ONLY the key value (starts with AIzaSy) and not the full URL or curl command.';
-      if (geminiRes.status === 403) friendlyError += ' Your API key may be invalid or quota exceeded.';
-      if (geminiRes.status === 404) friendlyError += ' Make sure you copied ONLY the key value (starts with AIzaSy) and not the full URL or curl command.';
-      if (geminiRes.status === 429) friendlyError = 'Gemini API Rate Limit Exceeded (HTTP 429). You have hit the rate limit or daily quota. Please wait a moment before trying again, or clear your API key in Settings to use Sandbox mode.';
+      let friendlyError = `OpenAI API error (HTTP ${openaiRes.status}).`;
+      if (openaiRes.status === 401) friendlyError = 'OpenAI API key is invalid or expired. Please check OPENAI_API_KEY in Vercel settings.';
+      if (openaiRes.status === 429) friendlyError = 'OpenAI rate limit reached. Please wait a moment and try again.';
+      if (openaiRes.status === 500) friendlyError = 'OpenAI server error. Please try again in a few seconds.';
 
-      return res.status(geminiRes.status).json({ error: friendlyError });
+      return res.status(openaiRes.status).json({ error: friendlyError });
     }
 
-    // Stream the Gemini response back to the client
+    // Stream the OpenAI response back to the client
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering on Vercel
+    res.setHeader('X-Accel-Buffering', 'no');
 
-    if (geminiRes.body) {
-      const reader = geminiRes.body.getReader();
+    if (openaiRes.body) {
+      const reader = openaiRes.body.getReader();
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -71,7 +72,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('[Aether Chat] Unexpected error:', err);
-    // Only send error header if not already started streaming
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });
     } else {

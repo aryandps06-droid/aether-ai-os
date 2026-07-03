@@ -369,16 +369,117 @@ Would you like me to dive deeper into any of these areas? Try asking me somethin
 }
 
 
-// Aether AI — Pure Sandbox Mode (API-free, always works for all users)
-// All responses are generated locally using the built-in intelligent engine.
-// No API key required. No rate limits. No network dependency.
+// Aether AI — OpenAI Powered Streaming Engine
+// Calls /api/chat (Vercel serverless proxy) which uses OPENAI_API_KEY server-side.
+// Falls back to local sandbox if the API is unreachable.
 export function streamResponse(prompt, onChunk, onComplete, fileAttachment = null, chatHistory = []) {
-  const sandboxResponse = generateSandboxResponse(prompt, fileAttachment);
+  let cancelled = false;
 
+  // Build the OpenAI messages array
+  const messages = [
+    {
+      role: 'system',
+      content: `You are Aether, a next-generation, emotionally aware, empathetic AI Operating System assistant. 
+You understand and connect with all human emotions and speak all human languages fluently.
+Respond with warmth, high intellect, and empathetic connection.
+Format responses beautifully using markdown: headers, bullet points, code blocks, and tables where appropriate.
+Keep your responses focused, concise, and premium quality.`
+    }
+  ];
+
+  // Add recent chat history (last 8 messages for context)
+  const recentHistory = chatHistory.slice(-8);
+  recentHistory.forEach(h => {
+    messages.push({
+      role: h.sender === 'user' ? 'user' : 'assistant',
+      content: h.text
+    });
+  });
+
+  // Add the current user prompt
+  let userContent = prompt;
+  if (fileAttachment) {
+    userContent = `[File attached: ${fileAttachment.name}]\n\`\`\`\n${fileAttachment.content || ''}\n\`\`\`\n\n${prompt}`;
+  }
+  messages.push({ role: 'user', content: userContent });
+
+  let accumulatedText = '';
+  let buffer = '';
+
+  // Try OpenAI via server proxy first
+  const controller = new AbortController();
+
+  fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+    signal: controller.signal
+  })
+  .then(async (res) => {
+    if (!res.ok) {
+      // Try to get the error message
+      let errMsg = `Aether AI Error (HTTP ${res.status})`;
+      try { const data = await res.json(); errMsg = data.error || errMsg; } catch {}
+      onChunk(`⚠️ ${errMsg}\n\n_Falling back to local Sandbox mode..._`);
+      await new Promise(r => setTimeout(r, 1200));
+      if (!cancelled) useSandbox(prompt, fileAttachment, onChunk, onComplete);
+      return;
+    }
+
+    // Parse the OpenAI SSE stream
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done || cancelled) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // OpenAI SSE format: each line is "data: {...}" or "data: [DONE]"
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete last line
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const payload = trimmed.slice(6);
+        if (payload === '[DONE]') {
+          onComplete(accumulatedText);
+          return;
+        }
+        try {
+          const json = JSON.parse(payload);
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            accumulatedText += delta;
+            onChunk(accumulatedText);
+          }
+        } catch {}
+      }
+    }
+
+    if (!cancelled) onComplete(accumulatedText);
+  })
+  .catch((err) => {
+    if (cancelled || err.name === 'AbortError') return;
+    console.warn('[Aether] OpenAI call failed, using sandbox:', err.message);
+    // Silently fall back to sandbox without showing error
+    useSandbox(prompt, fileAttachment, onChunk, onComplete);
+  });
+
+  return () => {
+    cancelled = true;
+    controller.abort();
+  };
+}
+
+// Local sandbox fallback — always works, no network needed
+function useSandbox(prompt, fileAttachment, onChunk, onComplete) {
+  const sandboxResponse = generateSandboxResponse(prompt, fileAttachment);
   const words = sandboxResponse.split(' ');
   let currentIdx = 0;
   let accumulated = '';
-  // Dynamically pace the typing speed based on response length for natural feel
   const baseInterval = Math.max(8, Math.min(25, Math.floor(700 / words.length)));
 
   const timer = setInterval(() => {

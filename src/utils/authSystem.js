@@ -38,9 +38,9 @@ export const authSystem = {
 
         saveUsers(users);
 
-        // Attempt real OTP delivery via local Vite backend proxy (4-second strict timeout)
+        // Attempt real OTP delivery via Vercel serverless function (10-second timeout)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         fetch('/api/send-otp', {
           method: 'POST',
@@ -160,9 +160,9 @@ export const authSystem = {
         user.verificationCode = code;
         saveUsers(users);
 
-        // Attempt real recovery OTP delivery (4-second strict timeout)
+        // Attempt real recovery OTP delivery (10-second timeout)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         fetch('/api/send-otp', {
           method: 'POST',

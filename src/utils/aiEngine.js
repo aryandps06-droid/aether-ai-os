@@ -42,10 +42,10 @@ const TRENDING_TOPICS = [
 ];
 
 const FUNNY_RATE_LIMIT_MESSAGES = [
-  `🐢 **Whoa there, Speed Racer!** \n\nYou're chatting faster than my servers can drink coffee. We've hit the API rate limit (30 requests/min).\n\nTake a deep breath, stretch your fingers for 10 seconds, and try again! ☕🧘‍♂️`,
-  `🚦 **Hold your horses!** \n\nMy neural pathways need a tiny breather. We just hit the speed limit.\n\nGive me about 10 seconds to catch my breath and we'll get right back to it! 😮‍💨`,
-  `🔥 **Keyboard on fire?!** \n\nYou're typing so fast the servers are starting to sweat! We're temporarily rate-limited.\n\nGrab a sip of water, wait 10 seconds, and hit send again. 🚰`,
-  `🛑 **Whoops, too fast!** \n\nEven an advanced AI OS needs a micro-break. We hit the 30-message-per-minute cap. \n\nLet's take a quick 10-second timeout before continuing our quantum leaps! ⏱️`
+  `🐢 **Whoa there, Speed Racer!** \n\nYou're chatting faster than my servers can drink coffee. Even a quantum-powered AI needs a microsecond to breathe.\n\nTake a deep breath, stretch your fingers for 10 seconds, and try again! ☕🧘‍♂️`,
+  `🚦 **Hold your horses!** \n\nMy neural pathways are currently doing gymnastics to keep up with you.\n\nGive me about 10 seconds to catch my breath and we'll get right back to it! 😮‍💨`,
+  `🔥 **Keyboard on fire?!** \n\nYou're typing so fast my processors are starting to sweat! Let's let the cooling fans do their job.\n\nGrab a sip of water, wait 10 seconds, and hit send again. 🚰`,
+  `🛑 **Whoops, too fast!** \n\nEven a next-generation AI OS needs a tiny coffee break to process all this brilliance. \n\nLet's take a quick 10-second timeout before continuing our quantum leaps! ⏱️`
 ];
 
 // Helper to capitalize first letter
